@@ -1,64 +1,91 @@
-# LoBubble - Solana Token Analysis Bot
+# Solana Wallet & Bubblemap Bot
 
-A Telegram bot for analyzing Solana tokens using Bubblemaps, featuring wallet generation and token distribution analysis.
+A Telegram bot that allows users to generate Solana vanity wallet addresses and analyze token distributions with Bubblemaps.
 
 ## Features
 
-- 🫧 Bubblemap visualization for token analysis
-- 💹 Token market information and insights
-- 📊 Decentralization scoring system
-- 👛 Solana vanity wallet generation
-- 📱 Interactive Telegram mini-app support
+### Solana Vanity Wallet Generator
+- Create custom Solana wallet addresses with user-defined prefixes
+- Walk users through a simple registration process
+- Generate and securely provide wallet public/private keys
 
-## Configuration
+### Token Bubblemap Analysis
+- Analyze token distribution across multiple blockchains
+- Provide visual bubblemap showing token holder relationships
+- Calculate a decentralization score based on distribution metrics
+- Generate insightful analysis about token concentration
 
-The bot uses environment variables for configuration. Create a `.env` file in the root directory with the following variables:
-
-```env
-TELEGRAM_BOT_TOKEN=your_telegram_bot_token
-PORT=3000  # Server port for the bot
-```
-
-## Installation
+## Setup
 
 1. Clone the repository
-2. Install dependencies:
+```bash
+git clone <repository-url>
+cd lobubble
+```
+
+2. Install dependencies
 ```bash
 npm install
 ```
 
-3. Create and configure the `.env` file as described above
-4. Build the project:
+3. Create a `.env` file in the root directory with the following content:
+```
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
+```
+
+4. Build the project
 ```bash
 npm run build
 ```
 
-5. Start the bot:
+5. Start the bot
 ```bash
-npm start
+npm run serve
 ```
 
-## Development
+## Deployment on Render
 
-To run the bot in development mode with hot reloading:
-```bash
-npm run start
-```
+This project is configured for easy deployment on [Render](https://render.com/).
 
-## Commands
+### Deployment Steps
 
-- `/start` - Initialize the bot
-- `/register` - Register and create a Solana wallet
-- `/wallet` - View wallet information
-- `/bubblemap` - Generate token analysis bubblemap
+1. Create a new account or sign in to Render
+2. Click "New" and select "Web Service"
+3. Connect your GitHub repository
+4. Use the following settings:
+   - **Name**: lobubble-bot (or your preferred name)
+   - **Environment**: Node
+   - **Build Command**: `npm install && npm run build`
+   - **Start Command**: `npm run serve`
+   - **Plan**: Free
+
+5. Add the following environment variable:
+   - `TELEGRAM_BOT_TOKEN`: Your Telegram bot token
+
+6. Click "Create Web Service"
+
+The deployment will automatically use the `render.yaml` configuration file in the repository.
+
+## Available Commands
+
+- `/start` - Start the bot
+- `/register` - Start registration for a vanity wallet
+- `/wallet` - Check wallet information
+- `/bubblemap` - Generate bubblemap for any contract
 - `/help` - Show available commands
 
-## Environment Variables
+## Supported Blockchains for Bubblemap
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `TELEGRAM_BOT_TOKEN` | Your Telegram bot token from BotFather | Required |
-| `PORT` | Server port for the bot | 3000 |
+- Ethereum (eth)
+- Binance Smart Chain (bsc)
+- Fantom (ftm)
+- Avalanche (avax)
+- Cronos (cro)
+- Arbitrum (arbi)
+- Polygon (poly)
+- Base (base)
+- Solana (sol)
+- Sonic (sonic)
 
 ## License
 

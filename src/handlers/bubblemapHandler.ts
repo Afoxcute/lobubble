@@ -9,7 +9,6 @@ import {
   getScreenshotUrl,
   AVAILABLE_CHAINS
 } from '../utils/bubblemap';
-import { getUser } from '../utils/userDatabase';
 
 // Store in-progress bubblemap requests to handle the conversation flow
 interface BubblemapRequest {
@@ -24,25 +23,6 @@ const userBubblemapRequests = new Map<number, BubblemapRequest>();
 export async function handleBubblemapCommand(bot: TelegramBot, msg: TelegramBot.Message): Promise<void> {
   const chatId = msg.chat.id;
   const text = msg.text || '';
-  
-  // Check if user has a registered wallet
-  const user = getUser(chatId);
-  
-  if (!user || !user.registrationComplete) {
-    await bot.sendMessage(
-      chatId,
-      '❌ *Access Restricted*\n\nYou need to register and create a wallet before using the Bubblemap feature.\n\nPlease use the 📝 Register button or /register command first.',
-      { 
-        parse_mode: 'Markdown',
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '📝 Register Now', callback_data: 'register_start' }]
-          ]
-        }
-      }
-    );
-    return;
-  }
   
   // Clear any existing requests for this user to start fresh
   userBubblemapRequests.delete(chatId);
@@ -104,26 +84,6 @@ export async function handleBubblemapConversation(bot: TelegramBot, msg: Telegra
   // Check if the user has an active bubblemap request
   const request = userBubblemapRequests.get(chatId);
   if (!request) return false;
-  
-  // Check if user has a registered wallet
-  const user = getUser(chatId);
-  
-  if (!user || !user.registrationComplete) {
-    await bot.sendMessage(
-      chatId,
-      '❌ *Access Restricted*\n\nYou need to register and create a wallet before using the Bubblemap feature.\n\nPlease use the 📝 Register button or /register command first.',
-      { 
-        parse_mode: 'Markdown',
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '📝 Register Now', callback_data: 'register_start' }]
-          ]
-        }
-      }
-    );
-    userBubblemapRequests.delete(chatId); // Clear the request
-    return true;
-  }
   
   switch (request.stage) {
     case 'WAITING_FOR_TOKEN':
@@ -417,51 +377,4 @@ async function generateBubblemap(bot: TelegramBot, chatId: number, tokenAddress:
       );
     }
   }
-}
-
-// Handler for bubblemap-related callbacks
-export async function handleBubblemapCallback(bot: TelegramBot, query: TelegramBot.CallbackQuery): Promise<boolean> {
-  const chatId = query.message?.chat.id;
-  if (!chatId || !query.data) return false;
-  
-  // Check if this is bubblemap related
-  if (!query.data.startsWith('bubblemap_')) return false;
-  
-  // Check if user has a registered wallet
-  const user = getUser(chatId);
-  
-  if (!user || !user.registrationComplete) {
-    await bot.answerCallbackQuery(query.id, { 
-      text: '❌ You need to register and create a wallet before using Bubblemap',
-      show_alert: true 
-    });
-    
-    await bot.sendMessage(
-      chatId,
-      '❌ *Access Restricted*\n\nYou need to register and create a wallet before using the Bubblemap feature.\n\nPlease use the 📝 Register button or /register command first.',
-      { 
-        parse_mode: 'Markdown',
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '📝 Register Now', callback_data: 'register_start' }]
-          ]
-        }
-      }
-    );
-    
-    return true;
-  }
-  
-  const parts = query.data.split('_');
-  const action = parts[1];
-
-  // Handle based on action type
-  // This is a placeholder implementation - you should replace with actual bubblemap callback handling
-  if (action === 'close') {
-    await bot.deleteMessage(chatId, query.message?.message_id || 0);
-    return true;
-  }
-  
-  await bot.answerCallbackQuery(query.id);
-  return true;
 } 

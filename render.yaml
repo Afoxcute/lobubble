@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: lobubble-bot
+    env: node
+    region: Frankfurt
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run serve
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+    healthCheckPath: /health 

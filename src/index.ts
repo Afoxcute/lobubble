@@ -1,38 +1,38 @@
-import TelegramBot, { Message, CallbackQuery } from 'node-telegram-bot-api';
+import TelegramBot from 'node-telegram-bot-api';
 import dotenv from 'dotenv';
 import { handleRegistration, handleWalletStatus, handlePrefixSuggestion } from './handlers/registrationHandler';
 import { handleBubblemapCommand, handleBubblemapConversation, handleChainSelection } from './handlers/bubblemapHandler';
 import { getUser, createUser } from './utils/userDatabase';
-import express, { Request, Response } from 'express';
+import http from 'http';
 
 // Load environment variables from .env file
 dotenv.config();
 
-// Get the Telegram token and port from environment variables
+// Create a health check server for Render
+const server = http.createServer((req, res) => {
+  if (req.url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'OK', uptime: process.uptime() }));
+  } else {
+    res.writeHead(404);
+    res.end();
+  }
+});
+
+server.listen(process.env.PORT || 3000, () => {
+  console.log(`Health check server running on port ${process.env.PORT || 3000}`);
+});
+
+// Get the Telegram token from environment variables
 const token = process.env.TELEGRAM_BOT_TOKEN;
-const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
 if (!token) {
   console.error('TELEGRAM_BOT_TOKEN is not set in environment variables');
   process.exit(1);
 }
 
-// Create Express app
-const app = express();
-
-// Create a bot that uses webhooks in production and polling in development
-const bot = new TelegramBot(token, { polling: process.env.NODE_ENV !== 'production' });
-
-// Basic route for health check
-app.get('/', (_req: Request, res: Response) => {
-  res.send('Bot is running!');
-});
-
-// Start Express server
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}...`);
-  console.log(`Bot started in ${process.env.NODE_ENV || 'development'} mode`);
-});
+// Create a bot that uses 'polling' to fetch new updates
+const bot = new TelegramBot(token, { polling: true });
 
 // Global error handler for async operations
 const handleAsync = async (fn: (...args: any[]) => Promise<void>, ...args: any[]): Promise<void> => {
@@ -43,7 +43,7 @@ const handleAsync = async (fn: (...args: any[]) => Promise<void>, ...args: any[]
     
     // Try to notify the user if we can determine the chat ID
     try {
-      const msg = args.find(arg => arg?.chat?.id) as Message;
+      const msg = args.find(arg => arg?.chat?.id) as TelegramBot.Message;
       if (msg?.chat?.id) {
         await bot.sendMessage(
           msg.chat.id,
@@ -56,6 +56,9 @@ const handleAsync = async (fn: (...args: any[]) => Promise<void>, ...args: any[]
     }
   }
 };
+
+// Log when the bot starts
+console.log('Bot started...');
 
 // Create main menu keyboard
 function getMainMenuKeyboard(): TelegramBot.SendMessageOptions {
@@ -71,7 +74,7 @@ function getMainMenuKeyboard(): TelegramBot.SendMessageOptions {
 }
 
 // Handle /start command
-bot.onText(/\/start/, async (msg: Message) => {
+bot.onText(/\/start/, async (msg) => {
   await handleAsync(async () => {
     const chatId = msg.chat.id;
     let user = getUser(chatId);
@@ -91,7 +94,7 @@ bot.onText(/\/start/, async (msg: Message) => {
 });
 
 // Handle /help command
-bot.onText(/\/help|ℹ️ Help/, async (msg: Message) => {
+bot.onText(/\/help|ℹ️ Help/, async (msg) => {
   await handleAsync(async () => {
     const chatId = msg.chat.id;
     
@@ -114,12 +117,12 @@ bot.onText(/\/help|ℹ️ Help/, async (msg: Message) => {
 });
 
 // Handle /register command
-bot.onText(/\/register|📝 Register/, async (msg: Message) => {
-  await handleAsync(handleRegistration, bot, msg, msg.text || '');
+bot.onText(/\/register|📝 Register/, async (msg) => {
+  await handleAsync(handleRegistration, bot, msg, '/register');
 });
 
 // Handle /wallet command
-bot.onText(/\/wallet|👛 My Wallet/, async (msg: Message) => {
+bot.onText(/\/wallet|👛 My Wallet/, async (msg) => {
   await handleAsync(async () => {
     const chatId = msg.chat.id;
     await handleWalletStatus(bot, chatId);
@@ -127,7 +130,7 @@ bot.onText(/\/wallet|👛 My Wallet/, async (msg: Message) => {
 });
 
 // Handle /bubblemap command
-bot.onText(/\/bubblemap|📊 Bubblemap/, async (msg: Message) => {
+bot.onText(/\/bubblemap|📊 Bubblemap/, async (msg) => {
   await handleAsync(async () => {
     const chatId = msg.chat.id;
     const text = msg.text || '';
@@ -144,7 +147,7 @@ bot.onText(/\/bubblemap|📊 Bubblemap/, async (msg: Message) => {
 });
 
 // Handle callback queries
-bot.on('callback_query', async (callbackQuery: CallbackQuery) => {
+bot.on('callback_query', async (callbackQuery) => {
   await handleAsync(async () => {
     const message = callbackQuery.message;
     if (!message) return;
@@ -193,8 +196,8 @@ bot.on('callback_query', async (callbackQuery: CallbackQuery) => {
   }, callbackQuery);
 });
 
-// Listen for any kind of message
-bot.on('message', async (msg: Message) => {
+// Listen for any kind of message. There are different kinds of messages
+bot.on('message', async (msg) => {
   await handleAsync(async () => {
     // Skip command messages, which are handled by the specific handlers above
     if (msg.text?.startsWith('/') || 
@@ -216,6 +219,6 @@ bot.on('message', async (msg: Message) => {
 });
 
 // Handle errors
-bot.on('polling_error', (error: Error) => {
+bot.on('polling_error', (error) => {
   console.error('Polling error:', error);
 });
