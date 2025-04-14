@@ -7,8 +7,9 @@ import { getUser, createUser } from './utils/userDatabase';
 // Load environment variables from .env file
 dotenv.config();
 
-// Get the Telegram token from environment variables
+// Get the Telegram token and port from environment variables
 const token = process.env.TELEGRAM_BOT_TOKEN;
+const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
 if (!token) {
   console.error('TELEGRAM_BOT_TOKEN is not set in environment variables');
@@ -42,7 +43,7 @@ const handleAsync = async (fn: (...args: any[]) => Promise<void>, ...args: any[]
 };
 
 // Log when the bot starts
-console.log('Bot started...');
+console.log(`Bot started on port ${port}...`);
 
 // Create main menu keyboard
 function getMainMenuKeyboard(): TelegramBot.SendMessageOptions {
