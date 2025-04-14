@@ -4,9 +4,15 @@ services:
     env: node
     region: Frankfurt
     plan: free
-    buildCommand: npm install && npm run build
-    startCommand: npm run serve
+    buildCommand: npm install && npm run build && mkdir -p logs
+    startCommand: npm run serve:pm2
     envVars:
       - key: TELEGRAM_BOT_TOKEN
         sync: false
-    healthCheckPath: /health 
+      - key: NODE_ENV
+        value: production
+    healthCheckPath: /health
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1 

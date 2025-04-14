@@ -85,13 +85,56 @@ For development (with live reloading):
 npm start
 ```
 
-For production:
+For production with PM2 process management:
+
+```bash
+# Start with PM2
+npm run serve:pm2
+
+# Check running processes
+npm run status
+
+# View logs
+npm run logs
+
+# Restart the application
+npm run restart
+
+# Stop the application
+npm run stop
+```
+
+For production without PM2:
 
 ```bash
 npm run serve
 ```
 
-### 7. Verify Operation
+### 7. PM2 Process Management
+
+PM2 is integrated into the application for better production reliability:
+
+#### Key Features
+
+- **Auto-restart**: The bot automatically restarts if it crashes
+- **Log Management**: Logs are stored in the `logs/` directory with:
+  - `output.log`: Standard output logs
+  - `error.log`: Error logs
+- **Performance Monitoring**: Monitor memory usage and uptime
+- **Graceful Shutdown**: Properly closes connections during restart/stop
+
+#### Configuration
+
+PM2 settings are defined in `ecosystem.config.js` and include:
+
+- Memory limit (1GB max)
+- Log formatting and storage
+- Restart behavior and limits
+- Environment variable configuration
+
+You can modify this file to adjust these settings based on your needs.
+
+### 8. Verify Operation
 
 - Open Telegram and search for your bot by its username
 - Start a conversation with `/start`

@@ -4,9 +4,18 @@ import { handleRegistration, handleWalletStatus, handlePrefixSuggestion } from '
 import { handleBubblemapCommand, handleBubblemapConversation, handleChainSelection } from './handlers/bubblemapHandler';
 import { getUser, createUser } from './utils/userDatabase';
 import http from 'http';
+import fs from 'fs';
+import path from 'path';
 
 // Load environment variables from .env file
 dotenv.config();
+
+// Make sure logs directory exists
+const logsDir = path.join(process.cwd(), 'logs');
+if (!fs.existsSync(logsDir)) {
+  fs.mkdirSync(logsDir, { recursive: true });
+  console.log(`Created logs directory: ${logsDir}`);
+}
 
 // Create a health check server for Render
 const server = http.createServer((req, res) => {
@@ -21,7 +30,43 @@ const server = http.createServer((req, res) => {
 
 server.listen(process.env.PORT || 3000, () => {
   console.log(`Health check server running on port ${process.env.PORT || 3000}`);
+  
+  // Signal to PM2 that the application is ready
+  if (process.send) {
+    console.log('Sending ready signal to PM2');
+    process.send('ready');
+  }
 });
+
+// Handle graceful shutdown
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
+async function gracefulShutdown(signal: string): Promise<void> {
+  console.log(`Received ${signal}. Gracefully shutting down...`);
+  
+  // Perform cleanup operations
+  try {
+    // Stop polling for updates from Telegram
+    await bot.stopPolling();
+    console.log('Telegram bot polling stopped');
+    
+    // Close the HTTP server
+    server.close(() => {
+      console.log('HTTP server closed');
+      process.exit(0);
+    });
+    
+    // Set a timeout to force exit if cleanup takes too long
+    setTimeout(() => {
+      console.log('Forcing shutdown after timeout');
+      process.exit(1);
+    }, 10000);
+  } catch (error) {
+    console.error('Error during shutdown:', error);
+    process.exit(1);
+  }
+}
 
 // Get the Telegram token from environment variables
 const token = process.env.TELEGRAM_BOT_TOKEN;

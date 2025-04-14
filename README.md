@@ -128,6 +128,27 @@ User data is stored in:
 
 ## Deployment
 
+### Process Management with PM2
+
+The bot is configured to use PM2 (Process Manager 2) for production deployments, which provides:
+
+- Automatic application restart on crashes
+- Runtime performance and resource monitoring
+- Log management with rotation
+- Graceful shutdown and startup
+
+#### PM2 Commands
+
+| Command | Description |
+|---------|-------------|
+| `npm run serve:pm2` | Start the bot using PM2 |
+| `npm run restart` | Restart the bot |
+| `npm run stop` | Stop the bot |
+| `npm run logs` | View PM2 logs |
+| `npm run status` | Check PM2 process status |
+
+PM2 configuration is defined in `ecosystem.config.js`.
+
 ### Deploying to Render
 
 The project includes configuration for easy deployment on [Render](https://render.com/):

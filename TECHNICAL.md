@@ -252,6 +252,92 @@ The application implements comprehensive error handling:
 
 ## Deployment Architecture
 
+### PM2 Process Management
+
+The application uses PM2 (Process Manager 2) for production deployments, providing:
+
+```javascript
+// ecosystem.config.js
+module.exports = {
+  apps: [{
+    name: 'lobubble-bot',
+    script: 'dist/index.js',
+    instances: 1,
+    autorestart: true,
+    watch: false,
+    max_memory_restart: '1G',
+    env: {
+      NODE_ENV: 'development'
+    },
+    env_production: {
+      NODE_ENV: 'production'
+    },
+    log_date_format: 'YYYY-MM-DD HH:mm:ss',
+    error_file: 'logs/error.log',
+    out_file: 'logs/output.log',
+    merge_logs: true,
+    max_restarts: 10,
+    restart_delay: 5000,
+    kill_timeout: 5000,
+    wait_ready: true
+  }]
+};
+```
+
+Key PM2 implementation details:
+
+1. **Ready Signal**: The application signals readiness to PM2 after initializing:
+
+```typescript
+server.listen(process.env.PORT || 3000, () => {
+  console.log(`Health check server running on port ${process.env.PORT || 3000}`);
+  
+  // Signal to PM2 that the application is ready
+  if (process.send) {
+    console.log('Sending ready signal to PM2');
+    process.send('ready');
+  }
+});
+```
+
+2. **Graceful Shutdown**: The application handles shutdown signals properly:
+
+```typescript
+// Handle graceful shutdown
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
+async function gracefulShutdown(signal: string): Promise<void> {
+  console.log(`Received ${signal}. Gracefully shutting down...`);
+  
+  // Perform cleanup operations
+  try {
+    // Stop polling for updates from Telegram
+    await bot.stopPolling();
+    console.log('Telegram bot polling stopped');
+    
+    // Close the HTTP server
+    server.close(() => {
+      console.log('HTTP server closed');
+      process.exit(0);
+    });
+    
+    // Set a timeout to force exit if cleanup takes too long
+    setTimeout(() => {
+      console.log('Forcing shutdown after timeout');
+      process.exit(1);
+    }, 10000);
+  } catch (error) {
+    console.error('Error during shutdown:', error);
+    process.exit(1);
+  }
+}
+```
+
+3. **Log Management**: Structured logging with date formats and separate files for errors and standard output.
+
+4. **Resource Monitoring**: Memory usage is monitored, with automatic restart if exceeding 1GB.
+
 ### Health Checks
 
 A dedicated HTTP server runs alongside the bot to provide health checks:
