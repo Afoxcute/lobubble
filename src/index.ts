@@ -1,4 +1,4 @@
-import TelegramBot from 'node-telegram-bot-api';
+import TelegramBot, { Message, CallbackQuery } from 'node-telegram-bot-api';
 import dotenv from 'dotenv';
 import { handleRegistration, handleWalletStatus, handlePrefixSuggestion } from './handlers/registrationHandler';
 import { handleBubblemapCommand, handleBubblemapConversation, handleChainSelection } from './handlers/bubblemapHandler';
@@ -24,7 +24,7 @@ const app = express();
 const bot = new TelegramBot(token, { polling: process.env.NODE_ENV !== 'production' });
 
 // Basic route for health check
-app.get('/', (req: Request, res: Response) => {
+app.get('/', (_req: Request, res: Response) => {
   res.send('Bot is running!');
 });
 
@@ -43,7 +43,7 @@ const handleAsync = async (fn: (...args: any[]) => Promise<void>, ...args: any[]
     
     // Try to notify the user if we can determine the chat ID
     try {
-      const msg = args.find(arg => arg?.chat?.id) as TelegramBot.Message;
+      const msg = args.find(arg => arg?.chat?.id) as Message;
       if (msg?.chat?.id) {
         await bot.sendMessage(
           msg.chat.id,
@@ -71,7 +71,7 @@ function getMainMenuKeyboard(): TelegramBot.SendMessageOptions {
 }
 
 // Handle /start command
-bot.onText(/\/start/, async (msg) => {
+bot.onText(/\/start/, async (msg: Message) => {
   await handleAsync(async () => {
     const chatId = msg.chat.id;
     let user = getUser(chatId);
@@ -91,7 +91,7 @@ bot.onText(/\/start/, async (msg) => {
 });
 
 // Handle /help command
-bot.onText(/\/help|ℹ️ Help/, async (msg) => {
+bot.onText(/\/help|ℹ️ Help/, async (msg: Message) => {
   await handleAsync(async () => {
     const chatId = msg.chat.id;
     
@@ -114,12 +114,12 @@ bot.onText(/\/help|ℹ️ Help/, async (msg) => {
 });
 
 // Handle /register command
-bot.onText(/\/register|📝 Register/, async (msg) => {
-  await handleAsync(handleRegistration, bot, msg, '/register');
+bot.onText(/\/register|📝 Register/, async (msg: Message) => {
+  await handleAsync(handleRegistration, bot, msg, msg.text || '');
 });
 
 // Handle /wallet command
-bot.onText(/\/wallet|👛 My Wallet/, async (msg) => {
+bot.onText(/\/wallet|👛 My Wallet/, async (msg: Message) => {
   await handleAsync(async () => {
     const chatId = msg.chat.id;
     await handleWalletStatus(bot, chatId);
@@ -127,7 +127,7 @@ bot.onText(/\/wallet|👛 My Wallet/, async (msg) => {
 });
 
 // Handle /bubblemap command
-bot.onText(/\/bubblemap|📊 Bubblemap/, async (msg) => {
+bot.onText(/\/bubblemap|📊 Bubblemap/, async (msg: Message) => {
   await handleAsync(async () => {
     const chatId = msg.chat.id;
     const text = msg.text || '';
@@ -144,7 +144,7 @@ bot.onText(/\/bubblemap|📊 Bubblemap/, async (msg) => {
 });
 
 // Handle callback queries
-bot.on('callback_query', async (callbackQuery) => {
+bot.on('callback_query', async (callbackQuery: CallbackQuery) => {
   await handleAsync(async () => {
     const message = callbackQuery.message;
     if (!message) return;
@@ -193,8 +193,8 @@ bot.on('callback_query', async (callbackQuery) => {
   }, callbackQuery);
 });
 
-// Listen for any kind of message. There are different kinds of messages
-bot.on('message', async (msg) => {
+// Listen for any kind of message
+bot.on('message', async (msg: Message) => {
   await handleAsync(async () => {
     // Skip command messages, which are handled by the specific handlers above
     if (msg.text?.startsWith('/') || 
@@ -216,6 +216,6 @@ bot.on('message', async (msg) => {
 });
 
 // Handle errors
-bot.on('polling_error', (error) => {
+bot.on('polling_error', (error: Error) => {
   console.error('Polling error:', error);
 });
