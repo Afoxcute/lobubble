@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import { handleRegistration, handleWalletStatus, handlePrefixSuggestion } from './handlers/registrationHandler';
 import { handleBubblemapCommand, handleBubblemapConversation, handleChainSelection } from './handlers/bubblemapHandler';
 import { getUser, createUser } from './utils/userDatabase';
+import express, { Request, Response } from 'express';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -16,8 +17,22 @@ if (!token) {
   process.exit(1);
 }
 
-// Create a bot that uses 'polling' to fetch new updates
-const bot = new TelegramBot(token, { polling: true });
+// Create Express app
+const app = express();
+
+// Create a bot that uses webhooks in production and polling in development
+const bot = new TelegramBot(token, { polling: process.env.NODE_ENV !== 'production' });
+
+// Basic route for health check
+app.get('/', (req: Request, res: Response) => {
+  res.send('Bot is running!');
+});
+
+// Start Express server
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}...`);
+  console.log(`Bot started in ${process.env.NODE_ENV || 'development'} mode`);
+});
 
 // Global error handler for async operations
 const handleAsync = async (fn: (...args: any[]) => Promise<void>, ...args: any[]): Promise<void> => {
@@ -41,9 +56,6 @@ const handleAsync = async (fn: (...args: any[]) => Promise<void>, ...args: any[]
     }
   }
 };
-
-// Log when the bot starts
-console.log(`Bot started on port ${port}...`);
 
 // Create main menu keyboard
 function getMainMenuKeyboard(): TelegramBot.SendMessageOptions {
