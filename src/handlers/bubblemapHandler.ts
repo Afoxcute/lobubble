@@ -9,6 +9,7 @@ import {
   getScreenshotUrl,
   AVAILABLE_CHAINS
 } from '../utils/bubblemap';
+import { getUser } from '../utils/userDatabase';
 
 // Store in-progress bubblemap requests to handle the conversation flow
 interface BubblemapRequest {
@@ -23,6 +24,26 @@ const userBubblemapRequests = new Map<number, BubblemapRequest>();
 export async function handleBubblemapCommand(bot: TelegramBot, msg: TelegramBot.Message): Promise<void> {
   const chatId = msg.chat.id;
   const text = msg.text || '';
+  
+  // Check if user has a registered wallet
+  const user = getUser(chatId);
+  if (!user || !user.registrationComplete || !user.walletAddress) {
+    await bot.sendMessage(
+      chatId,
+      '❌ *Access Restricted*\n\n' +
+      'You need to register and generate a Solana wallet before using the Bubblemap feature.\n\n' +
+      'Please use the /register command to create your wallet first.',
+      { 
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '📝 Register Now', callback_data: 'register_start' }]
+          ]
+        }
+      }
+    );
+    return;
+  }
   
   // Clear any existing requests for this user to start fresh
   userBubblemapRequests.delete(chatId);
@@ -85,6 +106,28 @@ export async function handleBubblemapConversation(bot: TelegramBot, msg: Telegra
   const request = userBubblemapRequests.get(chatId);
   if (!request) return false;
   
+  // Verify user has a registered wallet before proceeding
+  const user = getUser(chatId);
+  if (!user || !user.registrationComplete || !user.walletAddress) {
+    await bot.sendMessage(
+      chatId,
+      '❌ *Access Restricted*\n\n' +
+      'You need to register and generate a Solana wallet before using the Bubblemap feature.\n\n' +
+      'Please use the /register command to create your wallet first.',
+      { 
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '📝 Register Now', callback_data: 'register_start' }]
+          ]
+        }
+      }
+    );
+    // Remove the request since they can't continue
+    userBubblemapRequests.delete(chatId);
+    return true;
+  }
+  
   switch (request.stage) {
     case 'WAITING_FOR_TOKEN':
       // User is inputting a token address
@@ -139,6 +182,32 @@ export async function handleChainSelection(bot: TelegramBot, callbackQuery: Tele
   const data = callbackQuery.data || '';
   
   if (!data.startsWith('chain_')) return;
+  
+  // Verify user has a registered wallet before proceeding
+  const user = getUser(chatId);
+  if (!user || !user.registrationComplete || !user.walletAddress) {
+    // Answer the callback query first to stop the loading state
+    await bot.answerCallbackQuery(callbackQuery.id);
+    
+    await bot.sendMessage(
+      chatId,
+      '❌ *Access Restricted*\n\n' +
+      'You need to register and generate a Solana wallet before using the Bubblemap feature.\n\n' +
+      'Please use the /register command to create your wallet first.',
+      { 
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '📝 Register Now', callback_data: 'register_start' }]
+          ]
+        }
+      }
+    );
+    
+    // Clear any pending requests
+    userBubblemapRequests.delete(chatId);
+    return;
+  }
   
   // Extract the chain from the callback data
   const chain = data.replace('chain_', '');
