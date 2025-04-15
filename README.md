@@ -170,6 +170,48 @@ The project includes configuration for easy deployment on [Render](https://rende
 
 The included `render.yaml` and `Procfile` handle the configuration automatically.
 
+## Docker Deployment
+
+The application is now configured to run in Docker, which makes deployment more consistent and reliable. 
+
+### Local Docker Setup
+
+To run the application locally with Docker:
+
+1. **Build the Docker image**:
+   ```bash
+   npm run docker:build
+   ```
+
+2. **Run the container**:
+   ```bash
+   npm run docker:run
+   ```
+
+3. **Using Docker Compose**:
+   ```bash
+   npm run docker:compose
+   ```
+
+### Deploying to Render with Docker
+
+1. Push your code to a Git repository
+2. Create a new Web Service on Render
+3. Select "Docker" as the environment
+4. Connect to your repository
+5. The service will automatically:
+   - Build the Docker image from the Dockerfile
+   - Mount a persistent volume for data
+   - Expose the health check endpoint
+
+6. Add the `TELEGRAM_BOT_TOKEN` environment variable in Render's dashboard
+
+### Docker Configuration Files
+
+- **Dockerfile**: Defines how to build the application container
+- **docker-compose.yml**: Local development setup with volume mounting
+- **.dockerignore**: Excludes unnecessary files from the container
+
 ## Usage Guide
 
 ### Bot Commands

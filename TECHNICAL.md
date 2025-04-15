@@ -378,6 +378,78 @@ services:
     healthCheckPath: /health
 ```
 
+### Docker Container Architecture
+
+The application is containerized using Docker for production deployments:
+
+```dockerfile
+FROM node:16-alpine
+
+# Create app directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy source files
+COPY . .
+
+# Build the application
+RUN npm run build
+
+# Create data directory with proper permissions
+RUN mkdir -p /data /app/logs
+RUN chmod 777 /data /app/logs
+
+# Set environment variable for production
+ENV NODE_ENV=production
+ENV PORT=3000
+
+# Expose port
+EXPOSE 3000
+
+# Start the bot
+CMD ["node", "dist/index.js"]
+```
+
+Key Docker implementation details:
+
+1. **Base Image**: Uses lightweight Node.js Alpine image to reduce container size
+2. **Build Process**: Compiles TypeScript inside the container for consistent builds
+3. **Persistent Storage**: Creates and configures volume mount points for data and logs
+4. **Environment Variables**: Sets production defaults while allowing runtime overrides
+5. **Port Exposure**: Exposes port 3000 for the health check endpoint
+6. **Startup Command**: Uses direct Node.js execution rather than PM2 in containerized environment
+
+For local development and testing, a `docker-compose.yml` file is provided:
+
+```yaml
+version: '3'
+
+services:
+  bot:
+    build: .
+    container_name: lobubble-bot
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/data
+```
+
+The Render deployment automatically handles:
+- Docker image building
+- Container orchestration
+- Persistent volume mounting
+- Environment variable injection
+- Health check monitoring
+
 ## Future Improvements
 
 Potential areas for enhancement:

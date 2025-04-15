@@ -186,62 +186,73 @@ If deploying to another platform, ensure:
 4. Environment variables are properly set
 5. A persistent storage location is available for the `/data` directory
 
-## Docker Deployment (Optional)
+## Docker Deployment (Recommended)
 
-### 1. Create a Dockerfile
+Using Docker is the recommended method for deploying this application, especially on Render.
 
-Create a file named `Dockerfile` in the root directory:
+### Prerequisites for Docker Deployment
 
-```dockerfile
-FROM node:16-alpine
+- **Docker**: Install Docker on your development machine
+  - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+  - Verify with: `docker --version`
 
-# Create app directory
-WORKDIR /app
+- **Docker Compose** (included with Docker Desktop)
+  - Verify with: `docker-compose --version`
 
-# Copy package files
-COPY package*.json ./
+### Local Docker Setup
 
-# Install dependencies
-RUN npm install
+1. **Build and run with Docker Compose**:
+   ```bash
+   # Make sure you have .env file with TELEGRAM_BOT_TOKEN
+   npm run docker:compose:build
+   ```
 
-# Copy source files
-COPY . .
+2. **Or build and run separately**:
+   ```bash
+   # Build the Docker image
+   npm run docker:build
+   
+   # Run the container
+   npm run docker:run
+   ```
 
-# Build the application
-RUN npm run build
+### Deploying to Render with Docker
 
-# Create data directory with proper permissions
-RUN mkdir -p /data && chown node:node /data
+Render has excellent support for Docker-based deployments, making it easy to deploy this application reliably.
 
-# Set environment variable for production
-ENV NODE_ENV=production
-ENV PORT=3000
+1. **Push your repository to GitHub**
 
-# Set user to avoid running as root
-USER node
+2. **Create a new Web Service on Render**:
+   - Sign in to your Render account
+   - Click "New" and select "Web Service"
+   - Connect to your GitHub repository
+   - Select "Docker" as the environment
+   - Set the required environment variables:
+     - `TELEGRAM_BOT_TOKEN`: Your Telegram bot token
 
-# Expose port
-EXPOSE 3000
+3. **Deploy**:
+   - Click "Create Web Service"
+   - Render will automatically build and deploy the Docker container
+   - The deployment will:
+     - Use the included Dockerfile to build the application
+     - Mount a persistent disk for data storage
+     - Run the health check endpoint to verify the service is running
 
-# Start the bot
-CMD ["npm", "run", "serve"]
-```
+### Docker Commands
 
-### 2. Build the Docker Image
+| Command | Description |
+|---------|-------------|
+| `npm run docker:build` | Build the Docker image |
+| `npm run docker:run` | Run the Docker container |
+| `npm run docker:compose` | Run with Docker Compose |
+| `npm run docker:compose:build` | Build and run with Docker Compose |
 
-```bash
-docker build -t solana-bubblemap-bot .
-```
+### Docker Configuration Files
 
-### 3. Run the Container
-
-```bash
-docker run -d --name solana-bot \
-  -e TELEGRAM_BOT_TOKEN=your_token_here \
-  -v $(pwd)/data:/data \
-  -p 3000:3000 \
-  solana-bubblemap-bot
-```
+- **Dockerfile**: Main configuration for building the container
+- **docker-compose.yml**: Configuration for local development
+- **.dockerignore**: Excludes unnecessary files from the container
+- **render.yaml**: Configuration for Render deployment
 
 ## Troubleshooting
 

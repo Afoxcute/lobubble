@@ -14,7 +14,11 @@
     "restart": "pm2 restart ecosystem.config.js",
     "stop": "pm2 stop ecosystem.config.js",
     "logs": "pm2 logs",
-    "status": "pm2 status"
+    "status": "pm2 status",
+    "docker:build": "docker build -t lobubble-bot .",
+    "docker:run": "docker run -p 3000:3000 --env-file .env -v ./data:/data lobubble-bot",
+    "docker:compose": "docker-compose up",
+    "docker:compose:build": "docker-compose up --build"
   },
   "keywords": [],
   "author": "",
