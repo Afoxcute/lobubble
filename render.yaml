@@ -4,8 +4,8 @@ services:
     env: node
     region: Frankfurt
     plan: free
-    buildCommand: npm install && npm run build && mkdir -p logs
-    startCommand: npm run serve:pm2
+    buildCommand: npm install && npm run build && mkdir -p logs && ls -la && ls -la dist/
+    startCommand: pwd && npm run serve:pm2
     envVars:
       - key: TELEGRAM_BOT_TOKEN
         sync: false

@@ -8,9 +8,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "ts-node src/index.ts",
-    "build": "tsc",
+    "build": "tsc && echo 'Build completed' && ls -la dist",
     "serve": "node dist/index.js",
-    "serve:pm2": "pm2 start ecosystem.config.js",
+    "serve:pm2": "pm2 start ecosystem.config.js --no-daemon",
     "restart": "pm2 restart ecosystem.config.js",
     "stop": "pm2 stop ecosystem.config.js",
     "logs": "pm2 logs",
