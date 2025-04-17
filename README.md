@@ -2,7 +2,7 @@
 
 A comprehensive Telegram bot for generating Solana vanity wallet addresses and analyzing token distributions with Bubblemaps.
 
-## Demo Video
+## Demo Video 
 
 Watch our walkthrough demo video:
 [View Demo Video](https://drive.google.com/drive/folders/1j74KjxCiLj34nQu2TDQPXz5hBrfAlHDN?usp=sharing)
