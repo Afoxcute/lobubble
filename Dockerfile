@@ -1,34 +1,40 @@
 FROM node:16-alpine
-
 # Create app directory
 WORKDIR /app
-
 # Copy package files
 COPY package*.json ./
-
 # Install dependencies
 RUN npm install
 RUN npm install -g pm2
-
 # Copy source files
 COPY . .
-
 # Build the application
 RUN npm run build
-
 # Create data directory with proper permissions
 RUN mkdir -p /data /app/logs
 RUN chmod 777 /data /app/logs
-
 # Set environment variable for production
 ENV NODE_ENV=production
 ENV PORT=3000
-
-# Create a simplified PM2 config
-RUN echo '{ "apps": [{ "name": "lobubble-bot", "script": "dist/index.js", "instances": 1, "autorestart": true, "max_restarts": 10, "restart_delay": 5000, "max_memory_restart": "1G" }] }' > ecosystem.docker.json
-
+# Create an improved PM2 config with better restart settings
+RUN echo '{ \
+  "apps": [{ \
+    "name": "lobubble-bot", \
+    "script": "dist/index.js", \
+    "instances": 1, \
+    "autorestart": true, \
+    "max_restarts": 50, \
+    "restart_delay": 3000, \
+    "max_memory_restart": "1G", \
+    "exp_backoff_restart_delay": 100, \
+    "watch": false, \
+    "merge_logs": true, \
+    "error_file": "/app/logs/error.log", \
+    "out_file": "/app/logs/output.log", \
+    "log_date_format": "YYYY-MM-DD HH:mm:ss Z" \
+  }] \
+}' > ecosystem.docker.json
 # Expose port
 EXPOSE 3000
-
-# Start using PM2 in no-daemon mode
-CMD ["pm2-runtime", "start", "ecosystem.docker.json"] 
+# Use pm2-runtime with additional flags for better container integration
+CMD ["pm2-runtime", "start", "ecosystem.docker.json", "--env", "production"]
