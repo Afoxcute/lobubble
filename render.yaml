@@ -15,6 +15,8 @@ services:
       - key: PM2_SECRET_KEY
         sync: false
         optional: true
+      - key: PM2_DAEMON_MODE
+        value: "true"
     healthCheckPath: /health
     disk:
       name: data

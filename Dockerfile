@@ -32,9 +32,16 @@ RUN echo '{ \
     "error_file": "/app/logs/error.log", \
     "out_file": "/app/logs/output.log", \
     "log_date_format": "YYYY-MM-DD HH:mm:ss Z" \
-  }] \
+  }], \
+  "daemon_mode": true \
 }' > ecosystem.docker.json
+# Create a startup script
+RUN echo '#!/bin/sh \n\
+pm2 start ecosystem.docker.json --env production --daemon \n\
+sleep 3 \n\
+pm2 list \n\
+pm2 logs --lines 50' > /app/start.sh && chmod +x /app/start.sh
 # Expose port
 EXPOSE 3000
-# Use pm2-runtime with additional flags for better container integration
-CMD ["pm2-runtime", "start", "ecosystem.docker.json", "--env", "production"]
+# Use the startup script
+CMD ["/app/start.sh"]

@@ -10,7 +10,7 @@
     "start": "ts-node src/index.ts",
     "build": "tsc && echo 'Build completed' && ls -la dist",
     "serve": "node dist/index.js",
-    "serve:pm2": "pm2 start ecosystem.config.js --no-daemon",
+    "serve:pm2": "pm2 start ecosystem.config.js",
     "restart": "pm2 restart ecosystem.config.js",
     "stop": "pm2 stop ecosystem.config.js",
     "logs": "pm2 logs",
