@@ -38,27 +38,35 @@ server.listen(process.env.PORT || 3000, () => {
   }
 });
 
-// Modify the graceful shutdown logic to keep the process running
-process.on('SIGINT', () => {
-  console.log('Received SIGINT signal, but we will keep the bot running');
-  // Ignore shutdown signal
-});
+// Handle graceful shutdown
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
-process.on('SIGTERM', () => {
-  console.log('Received SIGTERM signal, but we will keep the bot running');
-  // Ignore shutdown signal
-}); 
-
-// Handle uncaught exceptions to prevent bot crashes
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught exception:', err);
-  // Log but don't exit
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  // Log but don't exit
-});
+async function gracefulShutdown(signal: string): Promise<void> {
+  console.log(`Received ${signal}. Gracefully shutting down...`);
+  
+  // Perform cleanup operations
+  try {
+    // Stop polling for updates from Telegram
+    await bot.stopPolling();
+    console.log('Telegram bot polling stopped');
+    
+    // Close the HTTP server
+    server.close(() => {
+      console.log('HTTP server closed');
+      process.exit(0);
+    });
+    
+    // Set a timeout to force exit if cleanup takes too long
+    setTimeout(() => {
+      console.log('Forcing shutdown after timeout');
+      process.exit(1);
+    }, 10000);
+  } catch (error) {
+    console.error('Error during shutdown:', error);
+    process.exit(1);
+  }
+}
 
 // Get the Telegram token from environment variables
 const token = process.env.TELEGRAM_BOT_TOKEN;

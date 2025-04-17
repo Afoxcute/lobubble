@@ -16,9 +16,6 @@ services:
         sync: false
         optional: true
     healthCheckPath: /health
-    healthCheckTimeout: 120
-    healthCheckInterval: 60
-    autoDeploy: false
     disk:
       name: data
       mountPath: /data
