@@ -16,7 +16,10 @@ RUN chmod 777 /data /app/logs
 # Set environment variable for production
 ENV NODE_ENV=production
 ENV PORT=3000
-# Create an improved PM2 config with better restart settings
+# Set PM2 to ignore signals (making it more resilient)
+ENV PM2_KILL_TIMEOUT=10000
+ENV PM2_KILL_SIGNAL=SIGKILL
+# Create a PM2 config with no-shutdown settings
 RUN echo '{ \
   "apps": [{ \
     "name": "lobubble-bot", \
@@ -31,10 +34,23 @@ RUN echo '{ \
     "merge_logs": true, \
     "error_file": "/app/logs/error.log", \
     "out_file": "/app/logs/output.log", \
-    "log_date_format": "YYYY-MM-DD HH:mm:ss Z" \
+    "log_date_format": "YYYY-MM-DD HH:mm:ss Z", \
+    "kill_timeout": 10000, \
+    "shutdown_with_message": false, \
+    "treekill": false, \
+    "listen_timeout": 50000, \
+    "wait_ready": false \
   }] \
 }' > ecosystem.docker.json
+# Create a wrapper script to keep the container running
+RUN echo '#!/bin/sh \n\
+pm2-runtime start ecosystem.docker.json --env production \n\
+while true; do \n\
+  sleep 10 \n\
+  pm2 ping > /dev/null || pm2-runtime start ecosystem.docker.json --env production \n\
+done' > /app/start.sh
+RUN chmod +x /app/start.sh
 # Expose port
 EXPOSE 3000
-# Use pm2-runtime with additional flags for better container integration
-CMD ["pm2-runtime", "start", "ecosystem.docker.json", "--env", "production"]
+# Use the wrapper script to ensure the bot keeps running
+CMD ["/app/start.sh"]
