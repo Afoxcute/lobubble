@@ -42,13 +42,13 @@ RUN echo '{ \
     "wait_ready": false \
   }] \
 }' > ecosystem.docker.json
-# Create a wrapper script to keep the container running
-RUN echo '#!/bin/sh \n\
-pm2-runtime start ecosystem.docker.json --env production \n\
-while true; do \n\
-  sleep 10 \n\
-  pm2 ping > /dev/null || pm2-runtime start ecosystem.docker.json --env production \n\
-done' > /app/start.sh
+# Create a wrapper script as a separate file
+RUN echo '#!/bin/sh' > /app/start.sh && \
+    echo 'pm2-runtime start ecosystem.docker.json --env production' >> /app/start.sh && \
+    echo 'while true; do' >> /app/start.sh && \
+    echo '  sleep 10' >> /app/start.sh && \
+    echo '  pm2 ping > /dev/null || pm2-runtime start ecosystem.docker.json --env production' >> /app/start.sh && \
+    echo 'done' >> /app/start.sh
 RUN chmod +x /app/start.sh
 # Expose port
 EXPOSE 3000
