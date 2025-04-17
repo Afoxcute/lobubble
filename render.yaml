@@ -9,6 +9,12 @@ services:
         sync: false
       - key: NODE_ENV
         value: production
+      - key: PM2_PUBLIC_KEY
+        sync: false
+        optional: true
+      - key: PM2_SECRET_KEY
+        sync: false
+        optional: true
     healthCheckPath: /health
     disk:
       name: data

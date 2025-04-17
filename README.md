@@ -212,6 +212,22 @@ To run the application locally with Docker:
 - **docker-compose.yml**: Local development setup with volume mounting
 - **.dockerignore**: Excludes unnecessary files from the container
 
+### Docker Integration with PM2
+
+The Docker deployment now includes PM2 for improved reliability:
+
+- **Automatic Restarts**: The bot will automatically restart if it crashes
+- **Memory Management**: The bot will be restarted if it uses too much memory (>1GB)
+- **Process Monitoring**: PM2 provides runtime metrics and monitoring
+- **Restart Limits**: Configured for up to 10 restarts with 5-second delays
+
+You can optionally connect your deployment to PM2 Plus monitoring by adding these environment variables:
+
+- `PM2_PUBLIC_KEY`: Your PM2 Plus public key (optional)
+- `PM2_SECRET_KEY`: Your PM2 Plus secret key (optional)
+
+These variables let you monitor your bot's health using PM2's dashboard.
+
 ## Usage Guide
 
 ### Bot Commands

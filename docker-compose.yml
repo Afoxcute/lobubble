@@ -8,7 +8,10 @@ services:
     environment:
       - NODE_ENV=production
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - PM2_PUBLIC_KEY=${PM2_PUBLIC_KEY}
+      - PM2_SECRET_KEY=${PM2_SECRET_KEY}
     ports:
       - "3000:3000"
     volumes:
-      - ./data:/data 
+      - ./data:/data
+      - ./logs:/app/logs 
