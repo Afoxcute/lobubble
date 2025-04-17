@@ -1,4 +1,4 @@
-# Solana Wallet & Bubblemap Bot Documentation
+# Solana Wallet & Bubblemap Bot Documentation  
 
 A comprehensive Telegram bot for generating Solana vanity wallet addresses and analyzing token distributions with Bubblemaps.
 
