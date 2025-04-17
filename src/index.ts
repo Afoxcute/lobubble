@@ -4,11 +4,16 @@ import { handleRegistration, handleWalletStatus, handlePrefixSuggestion } from '
 import { handleBubblemapCommand, handleBubblemapConversation, handleChainSelection } from './handlers/bubblemapHandler';
 import { getUser, createUser } from './utils/userDatabase';
 import http from 'http';
+import express from 'express';
 import fs from 'fs';
 import path from 'path';
 
 // Load environment variables from .env file
 dotenv.config();
+
+// Create Express app
+const app = express();
+const PORT = process.env.PORT || 3000;
 
 // Make sure logs directory exists
 const logsDir = path.join(process.cwd(), 'logs');
@@ -17,54 +22,56 @@ if (!fs.existsSync(logsDir)) {
   console.log(`Created logs directory: ${logsDir}`);
 }
 
-// Create a health check server for Render
-const server = http.createServer((req, res) => {
-  if (req.url === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'OK', uptime: process.uptime() }));
-  } else {
-    res.writeHead(404);
-    res.end();
-  }
+// Basic request logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  next();
 });
 
-server.listen(process.env.PORT || 3000, () => {
-  console.log(`Health check server running on port ${process.env.PORT || 3000}`);
-  
-  // Signal to PM2 that the application is ready
-  if (process.send) {
-    console.log('Sending ready signal to PM2');
-    process.send('ready');
-  }
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+    telegramBot: bot ? 'running' : 'not connected'
+  });
 });
 
-// Handle graceful shutdown
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+// Bot status endpoint
+app.get('/status', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    botStartTime: startTime,
+    uptime: Math.floor((Date.now() - startTime) / 1000),
+    users: getUserCount()
+  });
+});
 
-async function gracefulShutdown(signal: string): Promise<void> {
-  console.log(`Received ${signal}. Gracefully shutting down...`);
-  
-  // Perform cleanup operations
+// Root endpoint with basic info
+app.get('/', (req, res) => {
+  res.send(`<h1>Solana Wallet & Bubblemap Bot</h1>
+    <p>Status: Online</p>
+    <p>Uptime: ${Math.floor((Date.now() - startTime) / 1000)} seconds</p>
+    <p><a href="/health">Health Check</a></p>`);
+});
+
+// Start Express server
+app.listen(PORT, () => {
+  console.log(`Express server running on port ${PORT}`);
+});
+
+// Track bot start time
+const startTime = Date.now();
+
+// Function to get user count
+function getUserCount() {
   try {
-    // Stop polling for updates from Telegram
-    await bot.stopPolling();
-    console.log('Telegram bot polling stopped');
-    
-    // Close the HTTP server
-    server.close(() => {
-      console.log('HTTP server closed');
-      process.exit(0);
-    });
-    
-    // Set a timeout to force exit if cleanup takes too long
-    setTimeout(() => {
-      console.log('Forcing shutdown after timeout');
-      process.exit(1);
-    }, 10000);
+    const userArray = getAllUsers();
+    return userArray.length;
   } catch (error) {
-    console.error('Error during shutdown:', error);
-    process.exit(1);
+    console.error('Error getting user count:', error);
+    return 0;
   }
 }
 
@@ -78,6 +85,9 @@ if (!token) {
 
 // Create a bot that uses 'polling' to fetch new updates
 const bot = new TelegramBot(token, { polling: true });
+
+// Import the missing functions
+import { getAllUsers } from './utils/userDatabase';
 
 // Global error handler for async operations
 const handleAsync = async (fn: (...args: any[]) => Promise<void>, ...args: any[]): Promise<void> => {
@@ -267,3 +277,29 @@ bot.on('message', async (msg) => {
 bot.on('polling_error', (error) => {
   console.error('Polling error:', error);
 });
+
+// Handle graceful shutdown
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
+async function gracefulShutdown(signal: string): Promise<void> {
+  console.log(`Received ${signal}. Gracefully shutting down...`);
+  
+  // Perform cleanup operations
+  try {
+    // Stop polling for updates from Telegram
+    await bot.stopPolling();
+    console.log('Telegram bot polling stopped');
+    
+    // Set a timeout to force exit if cleanup takes too long
+    setTimeout(() => {
+      console.log('Forcing shutdown after timeout');
+      process.exit(1);
+    }, 10000);
+    
+    process.exit(0);
+  } catch (error) {
+    console.error('Error during shutdown:', error);
+    process.exit(1);
+  }
+}

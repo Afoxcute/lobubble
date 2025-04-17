@@ -11,13 +11,11 @@ services:
         value: production
       - key: PM2_PUBLIC_KEY
         sync: false
-        optional: true
       - key: PM2_SECRET_KEY
         sync: false
-        optional: true
-      - key: PM2_DAEMON_MODE
-        value: "true"
     healthCheckPath: /health
+    healthCheckTimeout: 60
+    autoDeploy: true
     disk:
       name: data
       mountPath: /data

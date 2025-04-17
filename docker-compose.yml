@@ -4,14 +4,22 @@ services:
   bot:
     build: .
     container_name: lobubble-bot
-    restart: unless-stopped
+    restart: always
     environment:
       - NODE_ENV=production
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - PM2_PUBLIC_KEY=${PM2_PUBLIC_KEY}
-      - PM2_SECRET_KEY=${PM2_SECRET_KEY}
     ports:
       - "3000:3000"
     volumes:
       - ./data:/data
-      - ./logs:/app/logs 
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 1G 
