@@ -9,8 +9,7 @@ import {
   getScreenshotUrl,
   AVAILABLE_CHAINS
 } from '../utils/bubblemap';
-import { getUser } from '../utils/userDatabase';
-import { addToHistory, formatHistory, BubblemapHistoryEntry, clearHistory } from '../utils/history';
+import { getUser, addBubblemapHistory } from '../utils/userDatabase';
 
 // Store in-progress bubblemap requests to handle the conversation flow
 interface BubblemapRequest {
@@ -413,9 +412,6 @@ async function generateBubblemap(bot: TelegramBot, chatId: number, tokenAddress:
         }
       );
     }
-
-    // After successful bubblemap generation, add to history
-    addToHistory(chatId, tokenAddress, chain, bubblemapData, decentralizationScore);
   } catch (error) {
     let errorMessage = 'Failed to generate bubblemap.';
     
@@ -452,81 +448,33 @@ async function generateBubblemap(bot: TelegramBot, chatId: number, tokenAddress:
   }
 }
 
-// Add history command handler
-export async function handleHistoryCommand(bot: TelegramBot, msg: TelegramBot.Message): Promise<void> {
-  const chatId = msg.chat.id;
-  
-  // Verify user has a registered wallet before proceeding
-  const user = getUser(chatId);
-  if (!user || !user.registrationComplete || !user.walletAddress) {
-    await bot.sendMessage(
-      chatId,
-      '❌ *Access Restricted*\n\n' +
-      'You need to register and generate a Solana wallet before using the Bubblemap feature.\n\n' +
-      'Please use the /register command to create your wallet first.',
-      { 
-        parse_mode: 'Markdown',
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '📝 Register Now', callback_data: 'register_start' }]
-          ]
-        }
-      }
-    );
-    return;
-  }
-  
-  // Get and format history
-  const historyText = formatHistory(chatId);
-  
-  // Send history message with inline keyboard for actions
-  await bot.sendMessage(
-    chatId,
-    historyText,
-    {
-      parse_mode: 'Markdown',
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: '🔄 Generate New Bubblemap', callback_data: 'new_bubblemap' },
-            { text: '❌ Clear History', callback_data: 'clear_history' }
-          ]
-        ]
-      }
+export async function handleBubblemapRequest(
+  chatId: number,
+  tokenAddress: string,
+  chain: string
+): Promise<string> {
+  try {
+    // Validate chain
+    if (!AVAILABLE_CHAINS.includes(chain)) {
+      return `❌ Invalid chain. Available chains: ${AVAILABLE_CHAINS.join(', ')}`;
     }
-  );
-}
 
-// Add handler for history-related callbacks
-export async function handleHistoryCallback(bot: TelegramBot, callbackQuery: TelegramBot.CallbackQuery): Promise<void> {
-  const message = callbackQuery.message;
-  if (!message) return;
-  
-  const chatId = message.chat.id;
-  const data = callbackQuery.data;
-  
-  if (!data) return;
-  
-  // Answer the callback query first to stop the loading state
-  await bot.answerCallbackQuery(callbackQuery.id);
-  
-  switch (data) {
-    case 'new_bubblemap':
-      // Start a new bubblemap request
-      await handleBubblemapCommand(bot, { ...message, text: '/bubblemap' });
-      break;
-      
-    case 'clear_history':
-      // Clear user's history
-      clearHistory(chatId);
-      await bot.editMessageText(
-        '📊 *Your Bubblemap History*\n\nHistory cleared successfully!',
-        {
-          chat_id: chatId,
-          message_id: message.message_id,
-          parse_mode: 'Markdown'
-        }
-      );
-      break;
+    // Fetch bubblemap data
+    const bubblemapData = await fetchBubblemapData(tokenAddress, chain);
+    
+    // Store in history
+    addBubblemapHistory(chatId, {
+      tokenAddress,
+      chain,
+      tokenName: bubblemapData.full_name,
+      tokenSymbol: bubblemapData.symbol,
+      decentralizationScore: calculateDecentralizationScore(bubblemapData)
+    });
+
+    // Generate and return the formatted response
+    return formatBubblemapSummary(bubblemapData);
+  } catch (error) {
+    console.error('Error handling bubblemap request:', error);
+    return '❌ Error fetching bubblemap data. Please try again later.';
   }
 } 
