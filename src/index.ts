@@ -1,7 +1,7 @@
 import TelegramBot from 'node-telegram-bot-api';
 import dotenv from 'dotenv';
 import { handleRegistration, handleWalletStatus, handlePrefixSuggestion } from './handlers/registrationHandler';
-import { handleBubblemapCommand, handleBubblemapConversation, handleChainSelection } from './handlers/bubblemapHandler';
+import { handleBubblemapCommand, handleBubblemapConversation, handleChainSelection, handleHistoryCommand } from './handlers/bubblemapHandler';
 import { getUser, createUser } from './utils/userDatabase';
 import http from 'http';
 
@@ -66,7 +66,8 @@ function getMainMenuKeyboard(): TelegramBot.SendMessageOptions {
     reply_markup: {
       keyboard: [
         [{ text: '📝 Register' }, { text: '👛 My Wallet' }],
-        [{ text: 'ℹ️ Help' }, { text: '📊 Bubblemap' }]
+        [{ text: '📊 Bubblemap' }, { text: '📋 History' }],
+        [{ text: 'ℹ️ Help' }]
       ],
       resize_keyboard: true
     }
@@ -104,12 +105,14 @@ bot.onText(/\/help|ℹ️ Help/, async (msg) => {
       '📝 Register - Register and generate a Solana vanity wallet\n' +
       '👛 My Wallet - Check your wallet information\n' +
       '📊 Bubblemap - Generate a bubblemap for any contract\n' +
+      '📋 History - View your transaction history\n' +
       'ℹ️ Help - Show available commands\n\n' +
       'You can also use text commands:\n' +
       '/start - Start the bot\n' +
       '/register - Start registration\n' +
       '/wallet - Check wallet info\n' +
       '/bubblemap - Generate bubblemap\n' +
+      '/history - View transaction history\n' +
       '/help - Show this help',
       getMainMenuKeyboard()
     );
@@ -144,6 +147,11 @@ bot.onText(/\/bubblemap|📊 Bubblemap/, async (msg) => {
       await handleBubblemapCommand(bot, msg);
     }
   }, msg);
+});
+
+// Handle /history command
+bot.onText(/\/history|📋 History/, async (msg) => {
+  await handleAsync(handleHistoryCommand, bot, msg);
 });
 
 // Handle callback queries

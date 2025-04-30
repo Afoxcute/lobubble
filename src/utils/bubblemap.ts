@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { addBubblemapToHistory } from './userDatabase';
 
 // Define interfaces for token market data
 export interface TokenMarketData {
@@ -316,4 +317,20 @@ export function getScreenshotUrl(tokenAddress: string, chain: string): string {
   // This is a more reliable way to get the bubblemap image directly from their image API
   // The timestamp parameter helps bypass caching
   return `https://app.bubblemaps.io/api/v1/token/${chain}/${tokenAddress}/image?size=large&t=${Date.now()}`;
+}
+
+// Function to track bubblemap in user history
+export function trackBubblemapInHistory(
+  chatId: number, 
+  tokenAddress: string, 
+  chain: string, 
+  data: BubblemapResponse
+): void {
+  addBubblemapToHistory(
+    chatId,
+    tokenAddress,
+    chain,
+    data.full_name,
+    data.symbol
+  );
 } 

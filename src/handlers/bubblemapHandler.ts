@@ -7,10 +7,10 @@ import {
   calculateDecentralizationScore,
   generateInsights,
   getScreenshotUrl,
+  trackBubblemapInHistory,
   AVAILABLE_CHAINS
 } from '../utils/bubblemap';
-import { getUser } from '../utils/userDatabase';
-import { addHistoryEntry } from '../utils/history';
+import { getUser, getBubblemapHistory } from '../utils/userDatabase';
 
 // Store in-progress bubblemap requests to handle the conversation flow
 interface BubblemapRequest {
@@ -25,49 +25,74 @@ const userBubblemapRequests = new Map<number, BubblemapRequest>();
 export async function handleBubblemapCommand(bot: TelegramBot, msg: TelegramBot.Message): Promise<void> {
   const chatId = msg.chat.id;
   const text = msg.text || '';
-  const args = text.split(' ').slice(1);
-
-  if (args.length < 2) {
+  
+  // Check if user has a registered wallet
+  const user = getUser(chatId);
+  if (!user || !user.registrationComplete || !user.walletAddress) {
     await bot.sendMessage(
       chatId,
-      '❌ *Invalid command format*\n\n' +
-      'Please provide both token address and chain.\n' +
-      'Example: /bubblemap 0x123... eth',
-      { parse_mode: 'Markdown' }
+      '❌ *Access Restricted*\n\n' +
+      'You need to register and generate a Solana wallet before using the Bubblemap feature.\n\n' +
+      'Please use the /register command to create your wallet first.',
+      { 
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '📝 Register Now', callback_data: 'register_start' }]
+          ]
+        }
+      }
     );
     return;
   }
-
-  const [tokenAddress, chain] = args;
-  const chainLower = chain.toLowerCase();
-
-  try {
-    const bubblemapData = await fetchBubblemapData(tokenAddress, chainLower);
-    const bubblemapUrl = generateBubblemapUrl(tokenAddress, chainLower);
-    const summary = formatBubblemapSummary(bubblemapData);
-
-    // Add to history
-    addHistoryEntry(chatId, {
-      type: 'bubblemap',
-      data: {
+  
+  // Clear any existing requests for this user to start fresh
+  userBubblemapRequests.delete(chatId);
+  
+  // Check if there's an address in the command
+  const parts = text.split(' ');
+  if (parts.length > 1) {
+    // Format: /bubblemap 0x123... eth
+    const tokenAddress = parts[1].trim();
+    
+    // Basic validation
+    if (tokenAddress.length < 5) {
+      await bot.sendMessage(
+        chatId,
+        '❌ Invalid contract address. Please provide a valid contract address.',
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+    
+    const chain = parts.length > 2 ? parts[2].toLowerCase().trim() : '';
+    
+    if (chain && AVAILABLE_CHAINS.includes(chain)) {
+      // We have both address and valid chain
+      userBubblemapRequests.set(chatId, { 
+        tokenAddress, 
+        chain, 
+        stage: 'COMPLETED' 
+      });
+      
+      await generateBubblemap(bot, chatId, tokenAddress, chain);
+    } else {
+      // Have address but need chain
+      userBubblemapRequests.set(chatId, { 
         tokenAddress,
-        chain: chainLower,
-        action: 'generated'
-      }
-    });
-
+        stage: 'WAITING_FOR_CHAIN' 
+      });
+      
+      await promptForChain(bot, chatId, tokenAddress);
+    }
+  } else {
+    // Start the conversation flow
+    userBubblemapRequests.set(chatId, { stage: 'WAITING_FOR_TOKEN' });
+    
     await bot.sendMessage(
       chatId,
-      `🔍 *Bubblemap Analysis*\n\n` +
-      `${summary}\n\n` +
-      `[View Interactive Bubblemap](${bubblemapUrl})`,
-      { parse_mode: 'Markdown' }
-    );
-  } catch (error) {
-    await bot.sendMessage(
-      chatId,
-      '❌ *Error generating bubblemap*\n\n' +
-      'Please check the token address and chain, then try again.',
+      '🔍 *Bubblemap Generator*\n\n' +
+      'Please enter the contract address you want to generate a bubblemap for:',
       { parse_mode: 'Markdown' }
     );
   }
@@ -388,6 +413,9 @@ async function generateBubblemap(bot: TelegramBot, chatId: number, tokenAddress:
         }
       );
     }
+
+    // Track this bubblemap in user's history
+    trackBubblemapInHistory(chatId, tokenAddress, chain, bubblemapData);
   } catch (error) {
     let errorMessage = 'Failed to generate bubblemap.';
     
@@ -421,5 +449,82 @@ async function generateBubblemap(bot: TelegramBot, chatId: number, tokenAddress:
         `❌ ${errorMessage}\n\nPlease try again with a different contract address or chain.`
       );
     }
+  }
+}
+
+// Add a function to handle the history command
+export async function handleHistoryCommand(bot: TelegramBot, msg: TelegramBot.Message): Promise<void> {
+  const chatId = msg.chat.id;
+  
+  // Check if user has a registered wallet
+  const user = getUser(chatId);
+  if (!user || !user.registrationComplete || !user.walletAddress) {
+    await bot.sendMessage(
+      chatId,
+      '❌ *Access Restricted*\n\n' +
+      'You need to register and generate a Solana wallet before accessing your bubblemap history.\n\n' +
+      'Please use the /register command to create your wallet first.',
+      { 
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '📝 Register Now', callback_data: 'register_start' }]
+          ]
+        }
+      }
+    );
+    return;
+  }
+  
+  // Get user's bubblemap history
+  try {
+    const history = getBubblemapHistory(chatId);
+    
+    // If no history found
+    if (history.length === 0) {
+      await bot.sendMessage(
+        chatId,
+        '📜 *Bubblemap History*\n\n' +
+        'You haven\'t checked any bubblemaps yet.\n\n' +
+        'Use the /bubblemap command to analyze a token and it will appear in your history.',
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+    
+    // Format history entries
+    const formattedHistory = history.map((entry, index) => {
+      const date = new Date(entry.timestamp).toLocaleString();
+      const tokenName = entry.tokenName || 'Unknown Token';
+      const tokenSymbol = entry.tokenSymbol ? `(${entry.tokenSymbol})` : '';
+      
+      // Create a recheck button for each entry
+      return `${index + 1}. *${tokenName}* ${tokenSymbol}\n` +
+        `   Chain: ${entry.chain.toUpperCase()}\n` +
+        `   Address: \`${entry.tokenAddress}\`\n` +
+        `   Checked: ${date}\n` +
+        `   [Recheck](/bubblemap ${entry.tokenAddress} ${entry.chain})\n`;
+    }).join('\n');
+    
+    await bot.sendMessage(
+      chatId,
+      '📜 *Your Bubblemap History*\n\n' +
+      'Here are the tokens you have analyzed:\n\n' +
+      formattedHistory + '\n\n' +
+      'Click on "Recheck" to analyze any token again.',
+      { 
+        parse_mode: 'Markdown',
+        disable_web_page_preview: true
+      }
+    );
+    
+  } catch (error) {
+    console.error('Error fetching bubblemap history:', error);
+    
+    await bot.sendMessage(
+      chatId,
+      '❌ An error occurred while retrieving your bubblemap history. Please try again later.',
+      { parse_mode: 'Markdown' }
+    );
   }
 } 

@@ -49,6 +49,20 @@ The bot implements a conversational interface with comprehensive error handling,
 - Direct image API integration with Bubblemaps
 - Comprehensive token insights
 
+### Bubblemap History Feature
+
+The bot keeps track of all the token analyses you've performed:
+
+1. Access your history with the `/history` command or "📋 History" button
+2. View a list of your past token analyses with details:
+   - Token name and symbol
+   - Blockchain chain
+   - Contract address
+   - Date and time of analysis
+3. Quickly reanalyze any token by clicking the "Recheck" link
+4. History is maintained for up to 20 most recent tokens
+5. Requires wallet registration to access
+
 ## Architecture
 
 The application follows a modular architecture with clear separation of concerns:
@@ -160,6 +174,7 @@ The included `render.yaml` and `Procfile` handle the configuration automatically
 | `/register` | Start the wallet registration process |
 | `/wallet` | View your registered wallet information |
 | `/bubblemap` | Generate a bubblemap for a token (requires registration) |
+| `/history` | View your bubblemap analysis history (requires registration) |
 
 ### Wallet Registration Flow
 

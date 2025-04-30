@@ -13,6 +13,15 @@ export enum RegistrationStep {
   Complete = 'complete'
 }
 
+// Add a new interface for bubblemap history entries
+export interface BubblemapHistoryEntry {
+  tokenAddress: string;
+  chain: string;
+  timestamp: number;
+  tokenName?: string;
+  tokenSymbol?: string;
+}
+
 export interface UserInfo {
   chatId: number;
   username?: string;
@@ -23,6 +32,7 @@ export interface UserInfo {
   walletPrivateKey?: string;
   registrationComplete: boolean;
   currentStep: RegistrationStep;
+  bubblemapHistory?: BubblemapHistoryEntry[]; // Add history of bubblemaps checked
 }
 
 // In-memory database for users
@@ -134,4 +144,52 @@ export function clearAllUsers(): void {
 
 export function getUserByWalletAddress(walletAddress: string): UserInfo | undefined {
   return Array.from(users.values()).find(user => user.walletAddress === walletAddress);
+}
+
+// Add a function to update user's bubblemap history
+export function addBubblemapToHistory(
+  chatId: number, 
+  tokenAddress: string, 
+  chain: string,
+  tokenName?: string,
+  tokenSymbol?: string
+): void {
+  const user = users.get(chatId);
+  
+  if (!user) {
+    throw new Error(`User with chat ID ${chatId} not found`);
+  }
+  
+  // Initialize history array if it doesn't exist
+  if (!user.bubblemapHistory) {
+    user.bubblemapHistory = [];
+  }
+  
+  // Add the new entry at the beginning of the array (most recent first)
+  user.bubblemapHistory.unshift({
+    tokenAddress,
+    chain,
+    timestamp: Date.now(),
+    tokenName,
+    tokenSymbol
+  });
+  
+  // Limit history to 20 entries to prevent excessive storage
+  if (user.bubblemapHistory.length > 20) {
+    user.bubblemapHistory = user.bubblemapHistory.slice(0, 20);
+  }
+  
+  // Save the updated user data
+  saveUsers();
+}
+
+// Add a function to get user's bubblemap history
+export function getBubblemapHistory(chatId: number): BubblemapHistoryEntry[] {
+  const user = users.get(chatId);
+  
+  if (!user) {
+    throw new Error(`User with chat ID ${chatId} not found`);
+  }
+  
+  return user.bubblemapHistory || [];
 } 
