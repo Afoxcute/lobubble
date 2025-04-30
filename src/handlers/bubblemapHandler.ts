@@ -511,7 +511,7 @@ export async function handleHistoryCommand(bot: TelegramBot, msg: TelegramBot.Me
       '📜 *Your Bubblemap History*\n\n' +
       'Here are the tokens you have analyzed:\n\n' +
       formattedHistory + '\n\n' +
-      'Click on "Recheck" to analyze any token again.',
+      'Click on "Bubblemap" to analyze any token again.',
       { 
         parse_mode: 'Markdown',
         disable_web_page_preview: true
