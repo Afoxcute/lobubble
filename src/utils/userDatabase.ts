@@ -13,15 +13,6 @@ export enum RegistrationStep {
   Complete = 'complete'
 }
 
-export interface BubblemapHistoryEntry {
-  tokenAddress: string;
-  chain: string;
-  timestamp: number;
-  tokenName?: string;
-  tokenSymbol?: string;
-  decentralizationScore?: number;
-}
-
 export interface UserInfo {
   chatId: number;
   username?: string;
@@ -32,7 +23,6 @@ export interface UserInfo {
   walletPrivateKey?: string;
   registrationComplete: boolean;
   currentStep: RegistrationStep;
-  bubblemapHistory: BubblemapHistoryEntry[];
 }
 
 // In-memory database for users
@@ -95,8 +85,7 @@ export function createUser(chatId: number, username?: string): UserInfo {
     chatId,
     username,
     registrationComplete: false,
-    currentStep: RegistrationStep.None,
-    bubblemapHistory: []
+    currentStep: RegistrationStep.None
   };
   
   users.set(chatId, newUser);
@@ -145,32 +134,4 @@ export function clearAllUsers(): void {
 
 export function getUserByWalletAddress(walletAddress: string): UserInfo | undefined {
   return Array.from(users.values()).find(user => user.walletAddress === walletAddress);
-}
-
-// Add a new function to add a bubblemap history entry
-export function addBubblemapHistory(
-  chatId: number,
-  entry: Omit<BubblemapHistoryEntry, 'timestamp'>
-): void {
-  const user = users.get(chatId);
-  
-  if (!user) {
-    throw new Error(`User with chat ID ${chatId} not found`);
-  }
-  
-  // Add timestamp to the entry
-  const historyEntry: BubblemapHistoryEntry = {
-    ...entry,
-    timestamp: Date.now()
-  };
-  
-  // Add to the beginning of the array (most recent first)
-  user.bubblemapHistory.unshift(historyEntry);
-  
-  // Keep only the last 10 entries
-  if (user.bubblemapHistory.length > 10) {
-    user.bubblemapHistory = user.bubblemapHistory.slice(0, 10);
-  }
-  
-  saveUsers();
 } 

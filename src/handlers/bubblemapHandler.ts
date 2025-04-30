@@ -9,7 +9,8 @@ import {
   getScreenshotUrl,
   AVAILABLE_CHAINS
 } from '../utils/bubblemap';
-import { getUser, addBubblemapHistory } from '../utils/userDatabase';
+import { getUser } from '../utils/userDatabase';
+import { addHistoryEntry } from '../utils/history';
 
 // Store in-progress bubblemap requests to handle the conversation flow
 interface BubblemapRequest {
@@ -24,74 +25,49 @@ const userBubblemapRequests = new Map<number, BubblemapRequest>();
 export async function handleBubblemapCommand(bot: TelegramBot, msg: TelegramBot.Message): Promise<void> {
   const chatId = msg.chat.id;
   const text = msg.text || '';
-  
-  // Check if user has a registered wallet
-  const user = getUser(chatId);
-  if (!user || !user.registrationComplete || !user.walletAddress) {
+  const args = text.split(' ').slice(1);
+
+  if (args.length < 2) {
     await bot.sendMessage(
       chatId,
-      '❌ *Access Restricted*\n\n' +
-      'You need to register and generate a Solana wallet before using the Bubblemap feature.\n\n' +
-      'Please use the /register command to create your wallet first.',
-      { 
-        parse_mode: 'Markdown',
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '📝 Register Now', callback_data: 'register_start' }]
-          ]
-        }
-      }
+      '❌ *Invalid command format*\n\n' +
+      'Please provide both token address and chain.\n' +
+      'Example: /bubblemap 0x123... eth',
+      { parse_mode: 'Markdown' }
     );
     return;
   }
-  
-  // Clear any existing requests for this user to start fresh
-  userBubblemapRequests.delete(chatId);
-  
-  // Check if there's an address in the command
-  const parts = text.split(' ');
-  if (parts.length > 1) {
-    // Format: /bubblemap 0x123... eth
-    const tokenAddress = parts[1].trim();
-    
-    // Basic validation
-    if (tokenAddress.length < 5) {
-      await bot.sendMessage(
-        chatId,
-        '❌ Invalid contract address. Please provide a valid contract address.',
-        { parse_mode: 'Markdown' }
-      );
-      return;
-    }
-    
-    const chain = parts.length > 2 ? parts[2].toLowerCase().trim() : '';
-    
-    if (chain && AVAILABLE_CHAINS.includes(chain)) {
-      // We have both address and valid chain
-      userBubblemapRequests.set(chatId, { 
-        tokenAddress, 
-        chain, 
-        stage: 'COMPLETED' 
-      });
-      
-      await generateBubblemap(bot, chatId, tokenAddress, chain);
-    } else {
-      // Have address but need chain
-      userBubblemapRequests.set(chatId, { 
+
+  const [tokenAddress, chain] = args;
+  const chainLower = chain.toLowerCase();
+
+  try {
+    const bubblemapData = await fetchBubblemapData(tokenAddress, chainLower);
+    const bubblemapUrl = generateBubblemapUrl(tokenAddress, chainLower);
+    const summary = formatBubblemapSummary(bubblemapData);
+
+    // Add to history
+    addHistoryEntry(chatId, {
+      type: 'bubblemap',
+      data: {
         tokenAddress,
-        stage: 'WAITING_FOR_CHAIN' 
-      });
-      
-      await promptForChain(bot, chatId, tokenAddress);
-    }
-  } else {
-    // Start the conversation flow
-    userBubblemapRequests.set(chatId, { stage: 'WAITING_FOR_TOKEN' });
-    
+        chain: chainLower,
+        action: 'generated'
+      }
+    });
+
     await bot.sendMessage(
       chatId,
-      '🔍 *Bubblemap Generator*\n\n' +
-      'Please enter the contract address you want to generate a bubblemap for:',
+      `🔍 *Bubblemap Analysis*\n\n` +
+      `${summary}\n\n` +
+      `[View Interactive Bubblemap](${bubblemapUrl})`,
+      { parse_mode: 'Markdown' }
+    );
+  } catch (error) {
+    await bot.sendMessage(
+      chatId,
+      '❌ *Error generating bubblemap*\n\n' +
+      'Please check the token address and chain, then try again.',
       { parse_mode: 'Markdown' }
     );
   }
@@ -445,36 +421,5 @@ async function generateBubblemap(bot: TelegramBot, chatId: number, tokenAddress:
         `❌ ${errorMessage}\n\nPlease try again with a different contract address or chain.`
       );
     }
-  }
-}
-
-export async function handleBubblemapRequest(
-  chatId: number,
-  tokenAddress: string,
-  chain: string
-): Promise<string> {
-  try {
-    // Validate chain
-    if (!AVAILABLE_CHAINS.includes(chain)) {
-      return `❌ Invalid chain. Available chains: ${AVAILABLE_CHAINS.join(', ')}`;
-    }
-
-    // Fetch bubblemap data
-    const bubblemapData = await fetchBubblemapData(tokenAddress, chain);
-    
-    // Store in history
-    addBubblemapHistory(chatId, {
-      tokenAddress,
-      chain,
-      tokenName: bubblemapData.full_name,
-      tokenSymbol: bubblemapData.symbol,
-      decentralizationScore: calculateDecentralizationScore(bubblemapData)
-    });
-
-    // Generate and return the formatted response
-    return formatBubblemapSummary(bubblemapData);
-  } catch (error) {
-    console.error('Error handling bubblemap request:', error);
-    return '❌ Error fetching bubblemap data. Please try again later.';
   }
 } 
