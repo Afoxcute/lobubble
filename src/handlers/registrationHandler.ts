@@ -19,7 +19,8 @@ function getMainMenuKeyboard(): TelegramBot.SendMessageOptions {
     reply_markup: {
       keyboard: [
         [{ text: '📝 Register' }, { text: '👛 My Wallet' }],
-        [{ text: 'ℹ️ Help' }, { text: '📊 Bubblemap' }]
+        [{ text: '📊 Bubblemap' }, { text: '📋 History' }],
+        [{ text: 'ℹ️ Help' }]
       ],
       resize_keyboard: true
     }

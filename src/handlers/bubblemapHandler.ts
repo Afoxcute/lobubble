@@ -416,6 +416,13 @@ async function generateBubblemap(bot: TelegramBot, chatId: number, tokenAddress:
 
     // Track this bubblemap in user's history
     trackBubblemapInHistory(chatId, tokenAddress, chain, bubblemapData);
+
+    // Remind user about history feature
+    await bot.sendMessage(
+      chatId,
+      'This bubblemap has been saved to your history. Use /history to view all your past analyses.',
+      { parse_mode: 'Markdown' }
+    );
   } catch (error) {
     let errorMessage = 'Failed to generate bubblemap.';
     
@@ -503,7 +510,7 @@ export async function handleHistoryCommand(bot: TelegramBot, msg: TelegramBot.Me
         `   Chain: ${entry.chain.toUpperCase()}\n` +
         `   Address: \`${entry.tokenAddress}\`\n` +
         `   Checked: ${date}\n` +
-        `   [Recheck](/bubblemap ${entry.tokenAddress} ${entry.chain})\n`;
+        `   [Bubblemap](/bubblemap ${entry.tokenAddress} ${entry.chain})\n`;
     }).join('\n');
     
     await bot.sendMessage(
