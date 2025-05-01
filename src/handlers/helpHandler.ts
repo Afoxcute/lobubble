@@ -1,3 +1,5 @@
+import TelegramBot from 'node-telegram-bot-api';
+
 export async function handleHelpCommand(bot: TelegramBot, msg: TelegramBot.Message): Promise<void> {
   const chatId = msg.chat.id;
   
