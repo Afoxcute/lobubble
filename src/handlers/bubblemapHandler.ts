@@ -9,8 +9,7 @@ import {
   getScreenshotUrl,
   AVAILABLE_CHAINS
 } from '../utils/bubblemap';
-import { getUser, addBubblemapToHistory } from '../utils/userDatabase';
-import { generateTokenBubblemap, TokenBubblemapResult } from '../utils/bubblemap';
+import { getUser } from '../utils/userDatabase';
 
 // Store in-progress bubblemap requests to handle the conversation flow
 interface BubblemapRequest {
@@ -21,255 +20,250 @@ interface BubblemapRequest {
 
 const userBubblemapRequests = new Map<number, BubblemapRequest>();
 
-// Map to store the current state for each user
-const userStates: Map<number, {
-  step: 'initial' | 'asking_token' | 'asking_blockchain',
-  tokenAddress?: string,
-  blockchain?: string
-}> = new Map();
-
-// Available blockchains for bubblemap
-const availableBlockchains: Record<string, string> = {
-  eth: 'Ethereum',
-  bsc: 'Binance Smart Chain',
-  ftm: 'Fantom',
-  avax: 'Avalanche',
-  cro: 'Cronos',
-  arbi: 'Arbitrum',
-  poly: 'Polygon',
-  base: 'Base',
-  sol: 'Solana',
-  sonic: 'Sonic'
-};
-
-// Generate the blockchain selection keyboard
-function getBlockchainKeyboard(): TelegramBot.InlineKeyboardMarkup {
-  const keyboard: TelegramBot.InlineKeyboardButton[][] = [];
-  let row: TelegramBot.InlineKeyboardButton[] = [];
-  
-  Object.entries(availableBlockchains).forEach(([value, text], index) => {
-    row.push({ text, callback_data: `chain:${value}` });
-    
-    // Create rows of 2 buttons each
-    if (row.length === 2 || index === Object.keys(availableBlockchains).length - 1) {
-      keyboard.push([...row]);
-      row = [];
-    }
-  });
-  
-  // Add a cancel button at the bottom
-  keyboard.push([{ text: '❌ Cancel', callback_data: 'bubblemap:cancel' }]);
-  
-  return { inline_keyboard: keyboard };
-}
-
 // Main handler for /bubblemap command
 export async function handleBubblemapCommand(bot: TelegramBot, msg: TelegramBot.Message): Promise<void> {
   const chatId = msg.chat.id;
-  const user = getUser(chatId);
+  const text = msg.text || '';
   
-  // Check if user is registered
-  if (!user || !user.registrationComplete) {
-    await bot.sendMessage(chatId, 
-      "⚠️ You need to register first before using the Bubblemap feature.\n\n" +
-      "Please use the /register command to complete your registration.");
+  // Check if user has a registered wallet
+  const user = getUser(chatId);
+  if (!user || !user.registrationComplete || !user.walletAddress) {
+    await bot.sendMessage(
+      chatId,
+      '❌ *Access Restricted*\n\n' +
+      'You need to register and generate a Solana wallet before using the Bubblemap feature.\n\n' +
+      'Please use the /register command to create your wallet first.',
+      { 
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '📝 Register Now', callback_data: 'register_start' }]
+          ]
+        }
+      }
+    );
     return;
   }
   
-  // Initialize or reset user state
-  userStates.set(chatId, { step: 'asking_token' });
+  // Clear any existing requests for this user to start fresh
+  userBubblemapRequests.delete(chatId);
   
-  await bot.sendMessage(chatId,
-    "🔍 Please enter the token contract address you want to analyze.\n\n" +
-    "Example: `0x1f9840a85d5af5bf1d1762f925bdaddc4201f984` (UNI token)", {
-    parse_mode: 'Markdown'
-  });
-}
-
-// Handle user input for bubble map flow
-export async function handleBubblemapInput(bot: TelegramBot, msg: TelegramBot.Message): Promise<boolean> {
-  const chatId = msg.chat.id;
-  const text = msg.text?.trim();
-  
-  if (!text) return false;
-  
-  const state = userStates.get(chatId);
-  if (!state) return false;
-  
-  // Handle token address input
-  if (state.step === 'asking_token') {
-    // Simple validation for token address
-    if (!/^[a-zA-Z0-9]{20,64}$/.test(text)) {
-      await bot.sendMessage(chatId, 
-        "⚠️ Invalid token address format. Please enter a valid contract address.\n\n" +
-        "Example: `0x1f9840a85d5af5bf1d1762f925bdaddc4201f984`", {
-        parse_mode: 'Markdown'
-      });
-      return true;
+  // Check if there's an address in the command
+  const parts = text.split(' ');
+  if (parts.length > 1) {
+    // Format: /bubblemap 0x123... eth
+    const tokenAddress = parts[1].trim();
+    
+    // Basic validation
+    if (tokenAddress.length < 5) {
+      await bot.sendMessage(
+        chatId,
+        '❌ Invalid contract address. Please provide a valid contract address.',
+        { parse_mode: 'Markdown' }
+      );
+      return;
     }
     
-    // Update state with token address
-    userStates.set(chatId, { 
-      ...state, 
-      step: 'asking_blockchain',
-      tokenAddress: text
-    });
+    const chain = parts.length > 2 ? parts[2].toLowerCase().trim() : '';
     
-    // Ask for blockchain selection
-    await bot.sendMessage(chatId,
-      "🌐 Select the blockchain for this token:", {
-      reply_markup: getBlockchainKeyboard()
-    });
+    if (chain && AVAILABLE_CHAINS.includes(chain)) {
+      // We have both address and valid chain
+      userBubblemapRequests.set(chatId, { 
+        tokenAddress, 
+        chain, 
+        stage: 'COMPLETED' 
+      });
+      
+      await generateBubblemap(bot, chatId, tokenAddress, chain);
+    } else {
+      // Have address but need chain
+      userBubblemapRequests.set(chatId, { 
+        tokenAddress,
+        stage: 'WAITING_FOR_CHAIN' 
+      });
+      
+      await promptForChain(bot, chatId, tokenAddress);
+    }
+  } else {
+    // Start the conversation flow
+    userBubblemapRequests.set(chatId, { stage: 'WAITING_FOR_TOKEN' });
     
-    return true;
+    await bot.sendMessage(
+      chatId,
+      '🔍 *Bubblemap Generator*\n\n' +
+      'Please enter the contract address you want to generate a bubblemap for:',
+      { parse_mode: 'Markdown' }
+    );
   }
-  
-  return false;
 }
 
-// Handle callback queries for bubblemap
-export async function handleBubblemapCallback(bot: TelegramBot, callbackQuery: TelegramBot.CallbackQuery): Promise<boolean> {
-  if (!callbackQuery.data) return false;
+// Handler for bubblemap conversation flow
+export async function handleBubblemapConversation(bot: TelegramBot, msg: TelegramBot.Message): Promise<boolean> {
+  const chatId = msg.chat.id;
+  const text = msg.text || '';
   
-  const chatId = callbackQuery.message?.chat.id;
-  if (!chatId) return false;
+  // Check if the user has an active bubblemap request
+  const request = userBubblemapRequests.get(chatId);
+  if (!request) return false;
   
-  // Handle cancel button
-  if (callbackQuery.data === 'bubblemap:cancel') {
-    userStates.delete(chatId);
-    await bot.answerCallbackQuery(callbackQuery.id, { text: "Bubblemap generation cancelled" });
-    await bot.sendMessage(chatId, "❌ Bubblemap generation cancelled.");
+  // Verify user has a registered wallet before proceeding
+  const user = getUser(chatId);
+  if (!user || !user.registrationComplete || !user.walletAddress) {
+    await bot.sendMessage(
+      chatId,
+      '❌ *Access Restricted*\n\n' +
+      'You need to register and generate a Solana wallet before using the Bubblemap feature.\n\n' +
+      'Please use the /register command to create your wallet first.',
+      { 
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '📝 Register Now', callback_data: 'register_start' }]
+          ]
+        }
+      }
+    );
+    // Remove the request since they can't continue
+    userBubblemapRequests.delete(chatId);
     return true;
   }
   
-  // Handle blockchain selection
-  if (callbackQuery.data.startsWith('chain:')) {
-    const blockchain = callbackQuery.data.replace('chain:', '');
-    const state = userStates.get(chatId);
+  switch (request.stage) {
+    case 'WAITING_FOR_TOKEN':
+      // User is inputting a token address
+      userBubblemapRequests.set(chatId, {
+        ...request,
+        tokenAddress: text,
+        stage: 'WAITING_FOR_CHAIN'
+      });
+      
+      await promptForChain(bot, chatId, text);
+      return true;
+      
+    case 'WAITING_FOR_CHAIN':
+      // User is selecting a chain
+      const chain = text.toLowerCase();
+      
+      if (AVAILABLE_CHAINS.includes(chain)) {
+        const { tokenAddress } = request;
+        if (tokenAddress) {
+          await generateBubblemap(bot, chatId, tokenAddress, chain);
+          
+          // Mark as completed
+          userBubblemapRequests.set(chatId, {
+            ...request,
+            chain,
+            stage: 'COMPLETED'
+          });
+        }
+      } else {
+        // Invalid chain
+        await bot.sendMessage(
+          chatId,
+          `❌ Invalid chain: "${text}"\n\n` +
+          `Available chains: ${AVAILABLE_CHAINS.join(', ')}\n\n` +
+          'Please select a valid chain:',
+          getChainKeyboard()
+        );
+      }
+      return true;
+      
+    default:
+      return false;
+  }
+}
+
+// Handle chain selection callback
+export async function handleChainSelection(bot: TelegramBot, callbackQuery: TelegramBot.CallbackQuery): Promise<void> {
+  const message = callbackQuery.message;
+  if (!message) return;
+  
+  const chatId = message.chat.id;
+  const data = callbackQuery.data || '';
+  
+  if (!data.startsWith('chain_')) return;
+  
+  // Verify user has a registered wallet before proceeding
+  const user = getUser(chatId);
+  if (!user || !user.registrationComplete || !user.walletAddress) {
+    // Answer the callback query first to stop the loading state
+    await bot.answerCallbackQuery(callbackQuery.id);
     
-    if (!state || !state.tokenAddress) return false;
+    await bot.sendMessage(
+      chatId,
+      '❌ *Access Restricted*\n\n' +
+      'You need to register and generate a Solana wallet before using the Bubblemap feature.\n\n' +
+      'Please use the /register command to create your wallet first.',
+      { 
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '📝 Register Now', callback_data: 'register_start' }]
+          ]
+        }
+      }
+    );
     
-    // Answer the callback query with properly typed blockchain access
-    await bot.answerCallbackQuery(callbackQuery.id, { 
-      text: `${availableBlockchains[blockchain] || blockchain} selected` 
-    });
-    
-    // Update message to show selection with properly typed blockchain access
-    await bot.editMessageText(
-      `🔍 Analyzing ${state.tokenAddress} on ${availableBlockchains[blockchain] || blockchain}...`, {
-      chat_id: chatId,
-      message_id: callbackQuery.message?.message_id
-    });
-    
+    // Clear any pending requests
+    userBubblemapRequests.delete(chatId);
+    return;
+  }
+  
+  // Extract the chain from the callback data
+  const chain = data.replace('chain_', '');
+  
+  // Find the user's bubblemap request
+  const request = userBubblemapRequests.get(chatId);
+  
+  // Answer the callback query first to stop the loading state
+  await bot.answerCallbackQuery(callbackQuery.id);
+  
+  // If we have a request with a token address, process it
+  if (request && request.tokenAddress) {
     try {
-      // Show processing message
-      const processingMsg = await bot.sendMessage(chatId, 
-        "⏳ Generating bubblemap...\n\n" +
-        "This may take up to 30 seconds depending on the token and blockchain.");
-      
-      // Generate bubblemap
-      const result = await generateTokenBubblemap(state.tokenAddress, blockchain);
-      
-      // Add to user's bubblemap history
-      addBubblemapToHistory(
-        chatId,
-        state.tokenAddress,
-        blockchain,
-        result.tokenInfo?.symbol,
-        result.tokenInfo?.name
+      // Update the message to show we're generating
+      await bot.editMessageText(
+        `🔄 Processing your request for chain: ${chain.toUpperCase()}...`,
+        {
+          chat_id: chatId,
+          message_id: message.message_id,
+          parse_mode: 'Markdown'
+        }
       );
       
-      // Delete processing message
-      await bot.deleteMessage(chatId, processingMsg.message_id);
+      // Generate the bubblemap
+      await generateBubblemap(bot, chatId, request.tokenAddress, chain);
       
-      // Send results
-      await sendBubblemapResults(bot, chatId, result);
+      // Mark as completed
+      userBubblemapRequests.set(chatId, {
+        ...request,
+        chain,
+        stage: 'COMPLETED'
+      });
     } catch (error) {
-      console.error('Error generating bubblemap:', error);
-      await bot.sendMessage(chatId, 
-        "❌ Error generating bubblemap. This could be due to:\n\n" +
-        "• Invalid token address\n" +
-        "• Token not found on the selected blockchain\n" +
-        "• API service temporarily unavailable\n\n" +
-        "Please try again later or with a different token.");
+      console.error('Error handling chain selection:', error);
+      
+      // Send error message
+      await bot.sendMessage(
+        chatId,
+        '❌ An error occurred while processing your selection. Please try again.',
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: 'Try Again', callback_data: `chain_${chain}` }]
+            ]
+          }
+        }
+      );
     }
-    
-    // Clear user state after processing
-    userStates.delete(chatId);
-    
-    return true;
-  }
-  
-  return false;
-}
-
-// Format and send bubblemap results
-async function sendBubblemapResults(bot: TelegramBot, chatId: number, result: TokenBubblemapResult): Promise<void> {
-  // Token information
-  let caption = `*🔮 Bubblemap Analysis*\n\n`;
-  
-  if (result.tokenInfo) {
-    caption += `*Token:* ${result.tokenInfo.name || 'Unknown'} (${result.tokenInfo.symbol || 'Unknown'})\n`;
-    caption += `*Contract:* \`${result.tokenAddress}\`\n\n`;
   } else {
-    caption += `*Contract:* \`${result.tokenAddress}\`\n\n`;
+    // No active request found
+    await bot.sendMessage(
+      chatId,
+      '❌ Your bubblemap request has expired. Please start a new request with /bubblemap',
+      { parse_mode: 'Markdown' }
+    );
   }
-  
-  // Decentralization score
-  caption += `*Decentralization Score:* ${result.decentralizationScore}/100\n`;
-  
-  // Analysis
-  caption += `\n*Analysis:*\n`;
-  caption += `• ${result.holderCount} total holders identified\n`;
-  
-  if (result.topHolderPercentage) {
-    caption += `• Top 10 wallets hold ${result.topHolderPercentage}% of supply\n`;
-  }
-  
-  if (result.largeHolderCount) {
-    caption += `• ${result.largeHolderCount} wallets hold >1% of supply\n`;
-  }
-  
-  // Risk assessment
-  const score = result.decentralizationScore;
-  let riskLevel = '🔴 High';
-  
-  if (score >= 75) {
-    riskLevel = '🟢 Low';
-  } else if (score >= 40) {
-    riskLevel = '🟠 Medium';
-  }
-  
-  caption += `\n*Concentration Risk:* ${riskLevel}\n`;
-  
-  // Send image if available
-  if (result.imageUrl) {
-    await bot.sendPhoto(chatId, result.imageUrl, {
-      caption,
-      parse_mode: 'Markdown'
-    });
-  } else {
-    await bot.sendMessage(chatId, caption, {
-      parse_mode: 'Markdown'
-    });
-  }
-  
-  // Send follow-up message with additional options
-  await bot.sendMessage(chatId, 
-    "🌐 *Want to explore further?*\n\n" +
-    "You can view this token on Bubblemap's website for interactive exploration and more detailed analysis.",
-    {
-      parse_mode: 'Markdown',
-      reply_markup: {
-        inline_keyboard: [
-          [{ 
-            text: '🔗 View on Bubblemap', 
-            url: `https://bubblemap.io/token/${result.tokenAddress}?chain=${result.blockchain}` 
-          }]
-        ]
-      }
-    }
-  );
 }
 
 // Generate keyboard for chain selection

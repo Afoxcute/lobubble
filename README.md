@@ -160,7 +160,6 @@ The included `render.yaml` and `Procfile` handle the configuration automatically
 | `/register` | Start the wallet registration process |
 | `/wallet` | View your registered wallet information |
 | `/bubblemap` | Generate a bubblemap for a token (requires registration) |
-| `/history` | View your bubblemap analysis history |
 
 ### Wallet Registration Flow
 
@@ -187,18 +186,6 @@ The included `render.yaml` and `Procfile` handle the configuration automatically
    - Decentralization score
    - Market information (when available)
    - Interactive viewing options
-
-### History Feature
-
-The bot keeps track of all tokens you've analyzed through the bubblemap feature:
-
-1. Access your history with `/history` or the "📋 History" button
-2. View a list of previously analyzed tokens with:
-   - Token name and symbol
-   - Blockchain
-   - Date and time of analysis
-3. Click on any history entry to view the full analysis again
-4. The bot stores your 20 most recent analyses
 
 ### Supported Blockchains
 

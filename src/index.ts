@@ -1,8 +1,8 @@
 import TelegramBot from 'node-telegram-bot-api';
 import dotenv from 'dotenv';
 import { handleRegistration, handleWalletStatus, handlePrefixSuggestion } from './handlers/registrationHandler';
-import { handleBubblemapCommand, handleBubblemapInput, handleBubblemapCallback } from './handlers/bubblemapHandler';
-import { getUser, createUser, getBubblemapHistory, BubblemapHistoryEntry } from './utils/userDatabase';
+import { handleBubblemapCommand, handleBubblemapConversation, handleChainSelection } from './handlers/bubblemapHandler';
+import { getUser, createUser } from './utils/userDatabase';
 import http from 'http';
 
 // Load environment variables from .env file
@@ -66,8 +66,7 @@ function getMainMenuKeyboard(): TelegramBot.SendMessageOptions {
     reply_markup: {
       keyboard: [
         [{ text: '📝 Register' }, { text: '👛 My Wallet' }],
-        [{ text: 'ℹ️ Help' }, { text: '📊 Bubblemap' }],
-        [{ text: '📋 History' }]
+        [{ text: 'ℹ️ Help' }, { text: '📊 Bubblemap' }]
       ],
       resize_keyboard: true
     }
@@ -86,14 +85,9 @@ bot.onText(/\/start/, async (msg) => {
     
     await bot.sendMessage(
       chatId,
-      `👋 *Welcome to the Solana Wallet & Bubblemap Bot!*\n\n` +
-      `This bot helps you generate Solana vanity wallet addresses and analyze token distributions with Bubblemaps.\n\n` +
-      `Available commands:\n` +
-      '• /register - Generate a Solana wallet\n' +
-      '• /wallet - View your wallet info\n' +
-      '• /bubblemap - Generate a token bubblemap\n' +
-      '• /history - View your bubblemap history\n' +
-      '• /help - Show help information',
+      `Hello ${firstName}! Welcome to the Solana Wallet & Bubblemap Bot! 🚀\n\n` +
+      `This bot helps you generate Solana vanity wallet addresses and analyze crypto contracts with Bubblemaps.\n\n` +
+      `Use the buttons below to navigate:`,
       getMainMenuKeyboard()
     );
   }, msg);
@@ -106,24 +100,17 @@ bot.onText(/\/help|ℹ️ Help/, async (msg) => {
     
     await bot.sendMessage(
       chatId,
-      '🤖 *Solana Wallet & Bubblemap Bot - Help*\n\n' +
-      '*Available Commands*\n\n' +
-      '• /start - Initialize the bot and display main menu\n' +
-      '• /register - Start the wallet registration process\n' +
-      '• /wallet - View your registered wallet information\n' +
-      '• /bubblemap - Generate a bubblemap for a token\n' +
-      '• /history - View your bubblemap analysis history\n' +
-      '• /help - Show this help message\n\n' +
-      '*How to Use Bubblemap Analysis*\n' +
-      '1. Complete registration first using /register\n' +
-      '2. Use /bubblemap to start analysis\n' +
-      '3. Enter a token contract address\n' +
-      '4. Select the blockchain for the token\n' +
-      '5. View the generated bubblemap and analysis\n\n' +
-      '*How to View History*\n' +
-      '1. Use /history or click the "📋 History" button\n' +
-      '2. View your most recent bubblemap analyses\n' +
-      '3. Select an entry to view the full analysis again',
+      'Available commands:\n\n' +
+      '📝 Register - Register and generate a Solana vanity wallet\n' +
+      '👛 My Wallet - Check your wallet information\n' +
+      '📊 Bubblemap - Generate a bubblemap for any contract\n' +
+      'ℹ️ Help - Show available commands\n\n' +
+      'You can also use text commands:\n' +
+      '/start - Start the bot\n' +
+      '/register - Start registration\n' +
+      '/wallet - Check wallet info\n' +
+      '/bubblemap - Generate bubblemap\n' +
+      '/help - Show this help',
       getMainMenuKeyboard()
     );
   }, msg);
@@ -159,52 +146,6 @@ bot.onText(/\/bubblemap|📊 Bubblemap/, async (msg) => {
   }, msg);
 });
 
-// Handle /history command
-bot.onText(/\/history/, async (msg) => {
-  const chatId = msg.chat.id;
-  
-  // Check if user exists
-  const user = getUser(chatId);
-  if (!user) {
-    await bot.sendMessage(
-      chatId,
-      '❌ You need to register first before using this feature.\n\n' +
-      'Use /register to create your account.',
-      { parse_mode: 'Markdown' }
-    );
-    return;
-  }
-  
-  // Get user's bubblemap history
-  const history = getBubblemapHistory(chatId);
-  
-  if (history.length === 0) {
-    await bot.sendMessage(
-      chatId,
-      '📋 *Bubblemap History*\n\n' +
-      'You haven\'t analyzed any tokens yet.\n\n' +
-      'Use /bubblemap to analyze a token and build your history.',
-      { parse_mode: 'Markdown' }
-    );
-    return;
-  }
-  
-  // Format the history entries
-  const historyMessage = formatBubblemapHistory(history);
-  
-  // Create inline keyboard for history entries
-  const keyboard = createHistoryKeyboard(history);
-  
-  await bot.sendMessage(
-    chatId,
-    historyMessage,
-    {
-      parse_mode: 'Markdown',
-      reply_markup: keyboard
-    }
-  );
-});
-
 // Handle callback queries
 bot.on('callback_query', async (callbackQuery) => {
   await handleAsync(async () => {
@@ -218,7 +159,7 @@ bot.on('callback_query', async (callbackQuery) => {
     
     if (data.startsWith('chain_')) {
       // Handle chain selection for bubblemap
-      await handleBubblemapCallback(bot, callbackQuery);
+      await handleChainSelection(bot, callbackQuery);
     } else {
       switch (data) {
         case 'register_start':
@@ -243,9 +184,6 @@ bot.on('callback_query', async (callbackQuery) => {
           break;
         case 'prefix_moon':
           await handlePrefixSuggestion(bot, chatId, 'MOON');
-          break;
-        case 'history:':
-          await handleHistoryCallback(bot, callbackQuery);
           break;
         default:
           console.log(`Unknown callback data: ${data}`);
@@ -272,7 +210,7 @@ bot.on('message', async (msg) => {
     const text = msg.text || '';
     
     // Check if it's a bubblemap conversation
-    const isBubblemapConversation = await handleBubblemapInput(bot, msg);
+    const isBubblemapConversation = await handleBubblemapConversation(bot, msg);
     if (isBubblemapConversation) return;
     
     // Handle registration flow
@@ -284,132 +222,3 @@ bot.on('message', async (msg) => {
 bot.on('polling_error', (error) => {
   console.error('Polling error:', error);
 });
-
-// Format bubblemap history for display
-function formatBubblemapHistory(history: BubblemapHistoryEntry[]): string {
-  let message = '📋 *Your Bubblemap History*\n\n';
-  
-  history.forEach((entry, index) => {
-    const date = new Date(entry.timestamp).toLocaleDateString();
-    const time = new Date(entry.timestamp).toLocaleTimeString();
-    
-    message += `*${index + 1}.* `;
-    
-    if (entry.symbol && entry.name) {
-      message += `${entry.name} (${entry.symbol})`;
-    } else {
-      message += `Token: ${entry.tokenAddress.substring(0, 6)}...${entry.tokenAddress.substring(entry.tokenAddress.length - 4)}`;
-    }
-    
-    message += `\nChain: ${entry.chain.toUpperCase()}\n`;
-    message += `Date: ${date} ${time}\n\n`;
-  });
-  
-  message += 'Select an entry to view the full analysis.';
-  
-  return message;
-}
-
-// Create inline keyboard for history entries
-function createHistoryKeyboard(history: BubblemapHistoryEntry[]): TelegramBot.InlineKeyboardMarkup {
-  const keyboard: TelegramBot.InlineKeyboardButton[][] = [];
-  
-  history.forEach((entry, index) => {
-    const buttonText = entry.symbol 
-      ? `${index + 1}. ${entry.symbol}`
-      : `${index + 1}. ${entry.chain}:${entry.tokenAddress.substring(0, 6)}...`;
-    
-    keyboard.push([
-      { 
-        text: buttonText, 
-        callback_data: `history:${entry.chain}:${entry.tokenAddress}` 
-      }
-    ]);
-  });
-  
-  return { inline_keyboard: keyboard };
-}
-
-// Handle history callback
-async function handleHistoryCallback(bot: TelegramBot, callbackQuery: TelegramBot.CallbackQuery): Promise<void> {
-  if (!callbackQuery.data) return;
-  
-  const chatId = callbackQuery.message?.chat.id;
-  if (!chatId) return;
-  
-  // Extract chain and token from callback data
-  const [, chain, tokenAddress] = callbackQuery.data.split(':');
-  
-  if (!chain || !tokenAddress) {
-    await bot.answerCallbackQuery(callbackQuery.id, { text: 'Invalid selection' });
-    return;
-  }
-  
-  // Answer the callback query
-  await bot.answerCallbackQuery(callbackQuery.id, { text: 'Fetching analysis...' });
-  
-  try {
-    // Send loading message
-    const loadingMsg = await bot.sendMessage(chatId, '⏳ Retrieving bubblemap analysis...');
-    
-    // Generate the bubblemap analysis again
-    const { generateTokenBubblemap } = await import('./utils/bubblemap');
-    const result = await generateTokenBubblemap(tokenAddress, chain);
-    
-    // Delete loading message
-    await bot.deleteMessage(chatId, loadingMsg.message_id);
-    
-    // Format and send results
-    let message = `*🔮 Bubblemap Analysis*\n\n`;
-    
-    if (result.tokenInfo) {
-      message += `*Token:* ${result.tokenInfo.name || 'Unknown'} (${result.tokenInfo.symbol || 'Unknown'})\n`;
-      message += `*Contract:* \`${result.tokenAddress}\`\n\n`;
-    } else {
-      message += `*Contract:* \`${result.tokenAddress}\`\n\n`;
-    }
-    
-    message += `*Decentralization Score:* ${result.decentralizationScore}/100\n`;
-    message += `\n*Analysis:*\n`;
-    message += `• ${result.holderCount} total holders identified\n`;
-    
-    if (result.topHolderPercentage) {
-      message += `• Top 10 wallets hold ${result.topHolderPercentage}% of supply\n`;
-    }
-    
-    if (result.largeHolderCount) {
-      message += `• ${result.largeHolderCount} wallets hold >1% of supply\n`;
-    }
-    
-    // Risk assessment
-    const score = result.decentralizationScore;
-    let riskLevel = '🔴 High';
-    
-    if (score >= 75) {
-      riskLevel = '🟢 Low';
-    } else if (score >= 40) {
-      riskLevel = '🟠 Medium';
-    }
-    
-    message += `\n*Concentration Risk:* ${riskLevel}\n`;
-    
-    // Send image if available
-    if (result.imageUrl) {
-      await bot.sendPhoto(chatId, result.imageUrl, {
-        caption: message,
-        parse_mode: 'Markdown'
-      });
-    } else {
-      await bot.sendMessage(chatId, message, {
-        parse_mode: 'Markdown'
-      });
-    }
-  } catch (error) {
-    console.error('Error retrieving bubblemap history item:', error);
-    await bot.sendMessage(
-      chatId,
-      '❌ Error retrieving bubblemap analysis. The token may no longer be available or the service is temporarily unavailable.',
-      { parse_mode: 'Markdown' }
-    );
-  }
-}
