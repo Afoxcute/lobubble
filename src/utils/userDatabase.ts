@@ -4,6 +4,7 @@
 import fs from 'fs';
 import path from 'path';
 
+// Define the registration steps
 export enum RegistrationStep {
   None = 'none',
   AskName = 'ask_name',
@@ -13,15 +14,16 @@ export enum RegistrationStep {
   Complete = 'complete'
 }
 
-// Add a new interface for bubblemap history entries
+// Define the bubblemap history entry
 export interface BubblemapHistoryEntry {
   tokenAddress: string;
   chain: string;
+  symbol?: string;
+  name?: string;
   timestamp: number;
-  tokenName?: string;
-  tokenSymbol?: string;
 }
 
+// Define user information structure
 export interface UserInfo {
   chatId: number;
   username?: string;
@@ -32,164 +34,130 @@ export interface UserInfo {
   walletPrivateKey?: string;
   registrationComplete: boolean;
   currentStep: RegistrationStep;
-  bubblemapHistory?: BubblemapHistoryEntry[]; // Add history of bubblemaps checked
+  bubblemapHistory: BubblemapHistoryEntry[];
 }
 
-// In-memory database for users
-let users: Map<number, UserInfo> = new Map();
-
-// Determine data directory based on environment
-const DATA_DIR = process.env.NODE_ENV === 'production' ? '/data' : './data';
-const USER_DB_FILE = path.join(DATA_DIR, 'users.json');
+// Define the database file path
+const DATA_DIR = path.join(process.cwd(), 'data');
+const DB_FILE = path.join(DATA_DIR, 'users.json');
 
 // Ensure data directory exists
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+// Initialize the database file if it doesn't exist
+if (!fs.existsSync(DB_FILE)) {
+  fs.writeFileSync(DB_FILE, JSON.stringify({}, null, 2));
+}
+
+// Load the database from file
+let users: Record<number, UserInfo> = {};
 try {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    console.log(`Created data directory: ${DATA_DIR}`);
-  }
+  const data = fs.readFileSync(DB_FILE, 'utf-8');
+  users = JSON.parse(data);
 } catch (error) {
-  console.error('Error creating data directory:', error);
+  console.error('Error loading user database:', error);
+  // If there's an error, initialize with an empty object
+  users = {};
 }
 
-// Load users from file if exists
-function loadUsers() {
+// Save the database to file
+function saveUsers(): void {
   try {
-    if (fs.existsSync(USER_DB_FILE)) {
-      const data = fs.readFileSync(USER_DB_FILE, 'utf8');
-      const userArray: UserInfo[] = JSON.parse(data);
-      
-      // Convert array to Map
-      users = new Map(userArray.map(user => [user.chatId, user]));
-      console.log(`Loaded ${users.size} users from database`);
-    } else {
-      console.log('No existing user database found, starting fresh');
-    }
-  } catch (error) {
-    console.error('Error loading user database:', error);
-    // Continue with empty users Map
-  }
-}
-
-// Save users to file
-function saveUsers() {
-  try {
-    const userArray = Array.from(users.values());
-    fs.writeFileSync(USER_DB_FILE, JSON.stringify(userArray, null, 2), 'utf8');
+    fs.writeFileSync(DB_FILE, JSON.stringify(users, null, 2));
   } catch (error) {
     console.error('Error saving user database:', error);
   }
 }
 
-// Initialize by loading existing users
-loadUsers();
-
-// Get user by chat ID
-export function getUser(chatId: number): UserInfo | undefined {
-  return users.get(chatId);
+// Get a user by chatId
+export function getUser(chatId: number): UserInfo | null {
+  return users[chatId] || null;
 }
 
 // Create a new user
 export function createUser(chatId: number, username?: string): UserInfo {
-  const newUser: UserInfo = {
+  const user: UserInfo = {
     chatId,
     username,
     registrationComplete: false,
-    currentStep: RegistrationStep.None
+    currentStep: RegistrationStep.None,
+    bubblemapHistory: []
   };
   
-  users.set(chatId, newUser);
-  saveUsers(); // Save after creating a new user
+  users[chatId] = user;
+  saveUsers();
   
-  return newUser;
+  return user;
 }
 
 // Update user information
 export function updateUser(chatId: number, updates: Partial<UserInfo>): UserInfo {
-  const user = users.get(chatId);
-  
-  if (!user) {
-    throw new Error(`User with chat ID ${chatId} not found`);
-  }
-  
+  const user = users[chatId] || createUser(chatId);
   const updatedUser = { ...user, ...updates };
-  users.set(chatId, updatedUser);
-  saveUsers(); // Save after updating a user
+  
+  users[chatId] = updatedUser;
+  saveUsers();
   
   return updatedUser;
 }
 
 // Set the registration step for a user
-export function setRegistrationStep(chatId: number, step: RegistrationStep): void {
-  const user = users.get(chatId);
-  
-  if (!user) {
-    throw new Error(`User with chat ID ${chatId} not found`);
-  }
-  
-  user.currentStep = step;
-  saveUsers(); // Save after updating registration step
+export function setRegistrationStep(chatId: number, step: RegistrationStep): UserInfo {
+  return updateUser(chatId, { currentStep: step });
 }
 
-// Get all users (for admin purposes)
-export function getAllUsers(): UserInfo[] {
-  return Array.from(users.values());
-}
-
-// For testing and development - reset all users
-export function clearAllUsers(): void {
-  users.clear();
-  saveUsers();
-}
-
-export function getUserByWalletAddress(walletAddress: string): UserInfo | undefined {
-  return Array.from(users.values()).find(user => user.walletAddress === walletAddress);
-}
-
-// Add a function to update user's bubblemap history
+// Add a bubblemap entry to user history
 export function addBubblemapToHistory(
   chatId: number, 
   tokenAddress: string, 
   chain: string,
-  tokenName?: string,
-  tokenSymbol?: string
-): void {
-  const user = users.get(chatId);
+  symbol?: string,
+  name?: string
+): UserInfo {
+  const user = users[chatId] || createUser(chatId);
   
-  if (!user) {
-    throw new Error(`User with chat ID ${chatId} not found`);
-  }
-  
-  // Initialize history array if it doesn't exist
-  if (!user.bubblemapHistory) {
-    user.bubblemapHistory = [];
-  }
-  
-  // Add the new entry at the beginning of the array (most recent first)
-  user.bubblemapHistory.unshift({
+  // Create new history entry
+  const historyEntry: BubblemapHistoryEntry = {
     tokenAddress,
     chain,
-    timestamp: Date.now(),
-    tokenName,
-    tokenSymbol
-  });
+    symbol,
+    name,
+    timestamp: Date.now()
+  };
   
-  // Limit history to 20 entries to prevent excessive storage
-  if (user.bubblemapHistory.length > 20) {
-    user.bubblemapHistory = user.bubblemapHistory.slice(0, 20);
-  }
+  // Add to history (newest first)
+  const updatedHistory = [historyEntry, ...user.bubblemapHistory];
   
-  // Save the updated user data
+  // Limit to 20 entries to keep storage reasonable
+  const limitedHistory = updatedHistory.slice(0, 20);
+  
+  return updateUser(chatId, { bubblemapHistory: limitedHistory });
+}
+
+// Get user bubblemap history
+export function getBubblemapHistory(chatId: number): BubblemapHistoryEntry[] {
+  const user = users[chatId];
+  return user?.bubblemapHistory || [];
+}
+
+// Clear bubblemap history for a user
+export function clearBubblemapHistory(chatId: number): UserInfo {
+  return updateUser(chatId, { bubblemapHistory: [] });
+}
+
+// Get all users (for admin purposes)
+export function getAllUsers(): UserInfo[] {
+  return Object.values(users);
+}
+
+// Clear all users (for testing and development)
+export function clearAllUsers(): void {
+  Object.keys(users).forEach(key => delete users[Number(key)]);
   saveUsers();
 }
 
-// Add a function to get user's bubblemap history
-export function getBubblemapHistory(chatId: number): BubblemapHistoryEntry[] {
-  const user = users.get(chatId);
-  
-  if (!user) {
-    throw new Error(`User with chat ID ${chatId} not found`);
-  }
-  
-  return user.bubblemapHistory || [];
+export function getUserByWalletAddress(walletAddress: string): UserInfo | undefined {
+  return Object.values(users).find(user => user.walletAddress === walletAddress);
 } 

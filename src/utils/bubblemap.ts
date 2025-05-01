@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { addBubblemapToHistory } from './userDatabase';
 
 // Define interfaces for token market data
 export interface TokenMarketData {
@@ -9,6 +8,25 @@ export interface TokenMarketData {
   priceChange24h?: number;
   totalSupply?: number;
   fullyDilutedValuation?: number;
+}
+
+// Interface for token info
+export interface TokenInfo {
+  name?: string;
+  symbol?: string;
+  decimals?: number;
+}
+
+// Interface for bubblemap generation result
+export interface TokenBubblemapResult {
+  tokenAddress: string;
+  blockchain: string;
+  imageUrl?: string;
+  decentralizationScore: number;
+  holderCount: number;
+  topHolderPercentage?: number;
+  largeHolderCount?: number;
+  tokenInfo?: TokenInfo;
 }
 
 // Add interface for enhanced bubblemap data
@@ -319,18 +337,59 @@ export function getScreenshotUrl(tokenAddress: string, chain: string): string {
   return `https://app.bubblemaps.io/api/v1/token/${chain}/${tokenAddress}/image?size=large&t=${Date.now()}`;
 }
 
-// Function to track bubblemap in user history
-export function trackBubblemapInHistory(
-  chatId: number, 
-  tokenAddress: string, 
-  chain: string, 
-  data: BubblemapResponse
-): void {
-  addBubblemapToHistory(
-    chatId,
-    tokenAddress,
-    chain,
-    data.full_name,
-    data.symbol
-  );
+/**
+ * Generate a complete bubblemap analysis for a token
+ * @param tokenAddress Contract address to analyze
+ * @param chain Blockchain chain
+ * @returns Promise with complete bubblemap analysis
+ */
+export async function generateTokenBubblemap(
+  tokenAddress: string,
+  chain: string
+): Promise<TokenBubblemapResult> {
+  try {
+    // Fetch the bubblemap data
+    const bubblemapData = await fetchBubblemapData(tokenAddress, chain);
+    
+    // Calculate decentralization score
+    const decentralizationScore = calculateDecentralizationScore(bubblemapData);
+    
+    // Count holders with more than 1%
+    const largeHolderCount = bubblemapData.nodes.filter(node => node.percentage > 1).length;
+    
+    // Calculate top 10 holder percentage
+    const topHolderPercentage = bubblemapData.nodes
+      .slice(0, 10)
+      .reduce((sum, node) => sum + node.percentage, 0);
+    
+    // Get token info
+    const tokenInfo: TokenInfo = {
+      name: bubblemapData.full_name,
+      symbol: bubblemapData.symbol,
+    };
+    
+    // Generate a screenshot URL
+    const imageUrl = getScreenshotUrl(tokenAddress, chain);
+    
+    return {
+      tokenAddress,
+      blockchain: chain,
+      imageUrl,
+      decentralizationScore,
+      holderCount: bubblemapData.nodes.length,
+      topHolderPercentage: Math.round(topHolderPercentage * 10) / 10, // Round to 1 decimal
+      largeHolderCount,
+      tokenInfo
+    };
+  } catch (error) {
+    // For errors, return basic result with error indicator
+    console.error('Error generating token bubblemap:', error);
+    
+    return {
+      tokenAddress,
+      blockchain: chain,
+      decentralizationScore: 0,
+      holderCount: 0
+    };
+  }
 } 
