@@ -14,7 +14,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const VANITY_PREFIX_REGEX = /^[a-zA-Z0-9]{1,5}$/;
 
 // Create main menu keyboard
-function getMainMenuKeyboard(): TelegramBot.SendMessageOptions {
+export function getMainMenuKeyboard(): TelegramBot.SendMessageOptions {
   return {
     reply_markup: {
       keyboard: [

@@ -416,13 +416,6 @@ async function generateBubblemap(bot: TelegramBot, chatId: number, tokenAddress:
 
     // Track this bubblemap in user's history
     trackBubblemapInHistory(chatId, tokenAddress, chain, bubblemapData);
-
-    // Remind user about history feature
-    await bot.sendMessage(
-      chatId,
-      'This bubblemap has been saved to your history. Use /history to view all your past analyses.',
-      { parse_mode: 'Markdown' }
-    );
   } catch (error) {
     let errorMessage = 'Failed to generate bubblemap.';
     

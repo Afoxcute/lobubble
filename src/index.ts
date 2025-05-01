@@ -79,19 +79,20 @@ function getMainMenuKeyboard(): TelegramBot.SendMessageOptions {
 bot.onText(/\/start/, async (msg) => {
   await handleAsync(async () => {
     const chatId = msg.chat.id;
-    let user = getUser(chatId);
-    if (!user) {
-      user = createUser(chatId, msg.from?.username);
-    }
-    const firstName = msg.from?.first_name || 'there';
+    const { getMainMenuKeyboard } = await import('./handlers/registrationHandler');
+    const user = getUser(chatId) || createUser(chatId, msg.from?.username);
     
-    await bot.sendMessage(
-      chatId,
-      `Hello ${firstName}! Welcome to the Solana Wallet & Bubblemap Bot! 🚀\n\n` +
-      `This bot helps you generate Solana vanity wallet addresses and analyze crypto contracts with Bubblemaps.\n\n` +
-      `Use the buttons below to navigate:`,
-      getMainMenuKeyboard()
-    );
+    let welcomeMessage = `Welcome to Bubblemap Bot${user.name ? ', ' + user.name : ''}! 👋\n\n`;
+    
+    if (!user.registrationComplete) {
+      welcomeMessage += 'To access all features, please register and generate your Solana wallet first.\n\n';
+      welcomeMessage += 'Use the 📝 Register button below or type /register to get started.';
+    } else {
+      welcomeMessage += 'Your Solana wallet is registered and ready to use!\n\n';
+      welcomeMessage += 'Use the buttons below to access different features:';
+    }
+    
+    await bot.sendMessage(chatId, welcomeMessage, getMainMenuKeyboard());
   }, msg);
 });
 
@@ -132,7 +133,6 @@ bot.onText(/\/bubblemap|📊 Bubblemap/, async (msg) => {
 
 // Handle /history command
 bot.onText(/\/history|📋 History/, async (msg) => {
-  console.log(`User ${msg.from?.id} (${msg.from?.username || 'unknown'}) requested history`);
   await handleAsync(handleHistoryCommand, bot, msg);
 });
 
@@ -212,13 +212,3 @@ bot.on('message', async (msg) => {
 bot.on('polling_error', (error) => {
   console.error('Polling error:', error);
 });
-
-// Set bot commands for menu
-bot.setMyCommands([
-  { command: 'start', description: 'Start the bot and display main menu' },
-  { command: 'help', description: 'Show available commands and features' },
-  { command: 'register', description: 'Register and create a Solana wallet' },
-  { command: 'wallet', description: 'View your wallet address and status' },
-  { command: 'bubblemap', description: 'Generate token ownership visualization' },
-  { command: 'history', description: 'View your bubblemap analysis history' }
-]);
