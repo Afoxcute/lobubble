@@ -28,7 +28,7 @@ export async function handleHelpCommand(bot: TelegramBot, msg: TelegramBot.Messa
     'Click on any "Bubblemap" link to quickly re-analyze a token\n\n' +
     
     '*Need Help?*\n' +
-    'Contact support at support@botname.com';
+    'Contact support at support@lobubble.com';
 
   await bot.sendMessage(chatId, helpMessage, { parse_mode: 'Markdown' });
 } 
